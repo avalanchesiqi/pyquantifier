@@ -22,15 +22,8 @@ class CalibrationCurve():
         self.x_axis = None
         self.y_axis = None
     
-    def _find_nearest_idx(self, cx):
-        nearest_idx = (np.abs(self.x_axis - cx)).argmin()
-        return self.y_axis[nearest_idx]
-
-    def get_calibrated_prob(self, cxs):
-        if isinstance(cxs, Iterable):
-            return np.array([self._find_nearest_idx(cx) for cx in cxs])
-        else:
-            return self._find_nearest_idx(cxs)
+    def get_calibrated_prob(self):
+        pass
 
     def plot(self, pos_color='#3d85c6', neg_color='#cc0000', show_diagonal=False, fig_name=False, ax=None):
         if ax is None:
@@ -63,6 +56,10 @@ class CalibrationCurve():
 
         if fig_name:
             plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
+
+
+def get_bin_idx(score, size=10):
+    return min(int(score * size), size-1)
 
 
 def _prepare_canvas():
@@ -232,9 +229,6 @@ class DataHandler():
     def get_oracle_prevalence(self):
         return np.mean(self._oracle_df['GT'] == True)
 
-    def get_bin_idx(self, score, size=10):
-        return min(int(score * size), size-1)
-
     def load_features(self, features):
         self.observed_df[features] = self._oracle_df[features]
     
@@ -252,7 +246,7 @@ class DataHandler():
             sampled_idx = []
             for idx, item in unlabeled_subset.iterrows():
                 cx = item['C(X)']
-                bin_idx =self.get_bin_idx(cx, num_bin)
+                bin_idx =get_bin_idx(cx, num_bin)
                 if to_fill_list[bin_idx] > 0:
                     sampled_idx.append(idx)
                     to_fill_list[bin_idx] -= 1
@@ -527,8 +521,8 @@ class PerfectCalibrationCurve(CalibrationCurve):
         self.x_axis = np.linspace(0, 1, 200)
         self.y_axis = self.x_axis
 
-    def get_calibrated_prob(self, cx):
-        return cx
+    def get_calibrated_prob(self, cxs):
+        return cxs
 
 
 class NPBinningCalibrationCurve(CalibrationCurve):
@@ -536,6 +530,7 @@ class NPBinningCalibrationCurve(CalibrationCurve):
     A nonparametric binning calibration curve.
     """
     def __init__(self, df, num_bin):
+        self.num_bin = num_bin
         self.x_axis = np.linspace(0, 1, num_bin + 1)
 
         pos_cx = df[df['GT'] == True]['C(X)'].values
@@ -549,21 +544,35 @@ class NPBinningCalibrationCurve(CalibrationCurve):
         bin_margin = bin_width / 2
         self.x_axis = self.x_axis[:-1] + bin_margin
 
+    
+    def get_calibrated_prob(self, cxs):
+        if isinstance(cxs, Iterable):
+            return np.array([self.y_axis[get_bin_idx(cx, self.num_bin)] for cx in cxs])
+        else:
+            return self._find_cali_prob(cxs)
+
 
 class LogisticCalibrationCurve(CalibrationCurve):
     """
     A logistic calibration curve.
     """
-    def __init__(self, w, b):
+    def __init__(self):
         self.lr_regressor = LogisticRegression()
-    
+
+    def fit(self, df):
+        train_CX = df['C(X)'].values.reshape(-1, 1)
+        train_GT = df['GT'].astype('bool').values
+        print(train_GT)
+        self.lr_regressor = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
+        
     def sef_params(self, w, b):
         self.lr_regressor.coef_ = np.array([[w]])
         self.lr_regressor.intercept_ = np.array([b])
         self.lr_regressor.classes_=np.array([0, 1])
     
-    def get_calibrated_prob(self, cx):
-        return self.lr_regressor.predict_proba(cx)[0]
+    def get_calibrated_prob(self, cxs):
+        print(self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[1])
+        return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[1]
 
 
 class ProbabilityEstimator():
@@ -577,7 +586,9 @@ class ProbabilityEstimator():
         self.calibration_curve = calibration_curve
 
     def estimate(self, cx_array):
+        print(cx_array)
         calibrated_prob_array = self.calibration_curve.get_calibrated_prob(cx_array)
+        print(calibrated_prob_array)
         return np.mean(calibrated_prob_array)
 
     def plot(self, cx_array, num_bin=100):
