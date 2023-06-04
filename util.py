@@ -562,7 +562,6 @@ class LogisticCalibrationCurve(CalibrationCurve):
     def fit(self, df):
         train_CX = df['C(X)'].values.reshape(-1, 1)
         train_GT = df['GT'].astype('bool').values
-        print(train_GT)
         self.lr_regressor = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
         
     def sef_params(self, w, b):
@@ -571,8 +570,7 @@ class LogisticCalibrationCurve(CalibrationCurve):
         self.lr_regressor.classes_=np.array([0, 1])
     
     def get_calibrated_prob(self, cxs):
-        print(self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[1])
-        return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[1]
+        return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
 
 
 class ProbabilityEstimator():
@@ -586,9 +584,7 @@ class ProbabilityEstimator():
         self.calibration_curve = calibration_curve
 
     def estimate(self, cx_array):
-        print(cx_array)
         calibrated_prob_array = self.calibration_curve.get_calibrated_prob(cx_array)
-        print(calibrated_prob_array)
         return np.mean(calibrated_prob_array)
 
     def plot(self, cx_array, num_bin=100):
