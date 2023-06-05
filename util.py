@@ -238,6 +238,7 @@ class DataHandler():
     
     def get_sample_for_labeling(self, n_item=100, num_bin=10, strategy='random'):
         unlabeled_subset = self.observed_df[self.observed_df['GT'] == '']
+        # unlabeled_subset = unlabeled_subset.sample(frac=1)
         if strategy == 'random':
             return unlabeled_subset.sample(n=n_item).index
         elif strategy == 'uniform on C(X)':
@@ -254,6 +255,24 @@ class DataHandler():
                     if sum(to_fill_list) == 0:
                         break 
             return sampled_idx
+        elif strategy == 'neyman':
+            strata_list, _ = np.histogram(self.observed_df['C(X)'].values, bins=np.linspace(0, 1, num_bin+1))
+            N = np.array(strata_list)
+            K = np.arange(0.05, 1, 0.1)
+            S = np.sqrt(K * (1 - K))
+            to_fill_list = list(map(int, n_item * (N * S) / sum(N * S)))
+            sampled_idx = []
+            for idx, item in unlabeled_subset.iterrows():
+                cx = item['C(X)']
+                bin_idx =get_bin_idx(cx, num_bin)
+                if to_fill_list[bin_idx] > 0:
+                    sampled_idx.append(idx)
+                    to_fill_list[bin_idx] -= 1
+
+                    if sum(to_fill_list) == 0:
+                        break 
+            return sampled_idx
+
 
     def get_labeled_sample(self):
         return self.observed_df[self.observed_df['GT'] != '']
@@ -467,52 +486,6 @@ class DataHandler():
         plt.tight_layout()
 
 
-    # def estimate_pcc(self, df=None, num_bin=100, calibration_curve='perfect', fig_name=None):
-    #     ax = _prepare_canvas()
-
-    #     x_axis = np.linspace(0, 1, num_bin + 1)
-
-    #     all_hist, _ = np.histogram(self.observed_df['C(X)'].values, bins=x_axis)
-
-    #     classified_pos = 0
-
-    #     for bin_idx in range(num_bin):        
-    #         left_point = x_axis[bin_idx]   
-    #         right_point = x_axis[bin_idx+1]
-    #         transpancy = (left_point + right_point) / 2
-
-    #         if calibration_curve == 'ideal':
-    #             num_pos_in_slice = transpancy * all_hist[bin_idx]
-    #             num_neg_in_slice = (1 - transpancy) * all_hist[bin_idx]
-    #         else:
-    #             num_pos_in_slice = calibration_curve[bin_idx] * all_hist[bin_idx]
-    #             num_neg_in_slice = (1 - calibration_curve[bin_idx]) * all_hist[bin_idx]
-
-    #         classified_pos += num_pos_in_slice
-
-    #         ax.fill_between([left_point, right_point], 
-    #                                       [0, 0], 
-    #                                       [num_neg_in_slice, num_neg_in_slice], 
-    #                                       facecolor=self.negative_color, alpha=transpancy, lw=0)
-
-    #         ax.fill_between([left_point, right_point], 
-    #                                       [num_neg_in_slice, num_neg_in_slice], 
-    #                                       [all_hist[bin_idx], all_hist[bin_idx]], 
-    #                                       facecolor=self.positive_color, alpha=transpancy, lw=0, zorder=40)
-            
-    #     ax.plot((x_axis[1:] + x_axis[:-1]) / 2, 
-    #                           all_hist, c=self.unknown_color, lw=2, zorder=50)
-
-    #     ax.set_xlabel('$C(X)$', fontsize=16)
-    #     ax.set_ylabel('freq', fontsize=16)
-    #     ax.set_ylim(ymin=0)
-
-    #     if fig_name:
-    #         plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
-        
-    #     return classified_pos / sum(all_hist)
-
-
 class PerfectCalibrationCurve(CalibrationCurve):
     """
     A perfect calibration curve.
@@ -563,6 +536,9 @@ class LogisticCalibrationCurve(CalibrationCurve):
         train_CX = df['C(X)'].values.reshape(-1, 1)
         train_GT = df['GT'].astype('bool').values
         self.lr_regressor = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
+        self.x_axis = np.linspace(0, 1, 101)
+        self.y_axis = self.get_calibrated_prob(self.x_axis)
+
         
     def sef_params(self, w, b):
         self.lr_regressor.coef_ = np.array([[w]])
@@ -586,6 +562,74 @@ class ProbabilityEstimator():
     def estimate(self, cx_array):
         calibrated_prob_array = self.calibration_curve.get_calibrated_prob(cx_array)
         return np.mean(calibrated_prob_array)
+
+    def plot(self, cx_array, num_bin=100):
+        x_axis = np.linspace(0, 1, num_bin + 1)
+        freq_hist, _ = np.histogram(cx_array, bins=x_axis)
+
+        num_bin = len(x_axis)
+        bin_width = 1 / num_bin
+        bin_margin = bin_width / 2
+
+        x_axis = x_axis[:-1] + bin_margin
+        plot_stacked_frequency(x_axis, freq_hist, self.calibration_curve, ax=None, fig_name=None)
+
+
+class MixtureModelEstimator():
+    """
+    A class for mixture model estimator.
+    """
+    def __init__(self):
+        self.positivity_density = None
+        self.negativity_density = None
+        
+    def set_positive_density(self, positivity_density):
+        self.positivity_density = positivity_density
+
+    def set_negativity_density(self, negativity_density):
+        self.negativity_density = negativity_density
+
+    def fit(self, sample_df, base_cx, num_bin=10):
+        x_axis = np.linspace(0, 1, num_bin+1)
+        base_cx_hist, _ = np.histogram(base_cx, bins=x_axis, density=True)
+        sample_cx_hist, _ = np.histogram(sample_df['C(X)'].values, bins=x_axis, density=True)
+
+        weight = base_cx_hist / sample_cx_hist
+
+        pos_cx = sample_df[sample_df['GT'] == True]['C(X)'].values
+        neg_cx = sample_df[sample_df['GT'] == False]['C(X)'].values
+
+        pos_hist_freq, _ = np.histogram(pos_cx, bins=x_axis, density=True)
+        neg_hist_freq, _ = np.histogram(neg_cx, bins=x_axis, density=True)
+
+        pos_hist_freq *= weight
+        pos_total = np.sum(pos_hist_freq)
+        pos_hist_freq /= pos_total
+
+        neg_hist_freq *= weight
+        neg_total = np.sum(neg_hist_freq)
+        neg_hist_freq /= neg_total
+
+        self.positivity_density = pos_hist_freq
+        self.negativity_density = neg_hist_freq
+    
+    def hellinger(self, p, q):
+        return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
+
+    def estimate(self, cx_array):
+        num_bin = len(self.positivity_density)
+        x_axis = np.linspace(0, 1, num_bin + 1)
+        cx_hist, _ = np.histogram(cx_array, bins=x_axis, density=True)
+
+        min_dist = 10000
+        best_p_p = 0
+
+        for p_p in np.linspace(0, 1, 101):
+            dist = self.hellinger(cx_hist, self.positivity_density * p_p + self.negativity_density * (1 - p_p))
+            if dist < min_dist:
+                min_dist = dist
+                best_p_p = p_p
+        return best_p_p
 
     def plot(self, cx_array, num_bin=100):
         x_axis = np.linspace(0, 1, num_bin + 1)
