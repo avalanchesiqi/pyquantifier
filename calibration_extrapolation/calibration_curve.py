@@ -50,7 +50,7 @@ class CalibrationCurve:
             plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
 
 
-class PerfectCalibrationCurve(CalibrationCurve):
+class PerfectCC(CalibrationCurve):
     """
     A perfect calibration curve.
     """
@@ -63,9 +63,11 @@ class PerfectCalibrationCurve(CalibrationCurve):
         return cxs
 
 
-class NPBinningCalibrationCurve(CalibrationCurve):
+class CalibrationLookupTable(CalibrationCurve):
     """
-    A nonparametric binning calibration curve.
+    .get_calibrated_score(cx) finds the nearest cx values above and below it, looks up the LabelDensity for each,
+    and makes a new LabelDensity that, for each label,
+    interpolates linearly between the values in the two LabelDensity instances.
     """
     def __init__(self, df, num_bin):
         super().__init__()
@@ -90,7 +92,7 @@ class NPBinningCalibrationCurve(CalibrationCurve):
             return self._find_cali_prob(cxs)
 
 
-class LogisticCalibrationCurve(CalibrationCurve):
+class PlattScaling(CalibrationCurve):
     """
     A logistic calibration curve.
     """
@@ -112,3 +114,17 @@ class LogisticCalibrationCurve(CalibrationCurve):
     
     def get_calibrated_prob(self, cxs):
         return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
+
+
+class TemperatureScaling(CalibrationCurve):
+    """
+    A temperature calibration curve.
+    """
+    def __init__(self):
+        super().__init__()
+        self.lr_regressor = LogisticRegression()
+
+
+class InferredCalibrationCurve(CalibrationCurve):
+    def __int__(self):
+        super().__int__()

@@ -3,12 +3,12 @@ import numpy as np
 from calibration_extrapolation.util import plot_stacked_frequency
 
 
-class IntrinsicEstimator:
+class IntrinsicPrevalenceEstimator:
     def __init__(self):
         pass
 
 
-class MixtureModelEstimator(IntrinsicEstimator):
+class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
     """
     A class for mixture model estimator.
     """
@@ -76,3 +76,13 @@ class MixtureModelEstimator(IntrinsicEstimator):
 
         x_axis = x_axis[:-1] + bin_margin
         plot_stacked_frequency(x_axis, freq_hist, self.calibration_curve, ax=None, fig_name=None)
+
+
+class VaryingThresholdEstimator(IntrinsicPrevalenceEstimator):
+    """
+    A class for varying threshold estimator.
+    """
+
+    def __init__(self):
+        super().__init__()
+        pass

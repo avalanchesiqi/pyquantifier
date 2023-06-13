@@ -4,17 +4,18 @@ from calibration_extrapolation.calibration_curve import CalibrationCurve
 from calibration_extrapolation.util import plot_stacked_frequency
 
 
-class ExtrinsicEstimator:
+class ExtrinsicPrevalenceEstimator:
     def __init__(self):
         pass
 
 
-class ProbabilityEstimator():
+class ProbabilityEstimator(ExtrinsicPrevalenceEstimator):
     """
     A class for probability estimator.
     """
 
     def __init__(self):
+        super().__init__()
         self.calibration_curve = None
 
     def set_calibration_curve(self, calibration_curve: CalibrationCurve):

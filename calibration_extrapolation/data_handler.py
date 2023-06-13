@@ -5,7 +5,8 @@ from sklearn.linear_model import LogisticRegression
 from matplotlib import pyplot as plt
 
 from calibration_extrapolation.util import get_bin_idx, prepare_canvas
-from calibration_extrapolation.calibration_curve import NPBinningCalibrationCurve, LogisticCalibrationCurve
+from calibration_extrapolation.calibration_curve import PerfectCC, \
+    NPBinningCalibrationCurve, LogisticCalibrationCurve
 
 
 class DataHandler:
@@ -196,6 +197,14 @@ class DataHandler:
 
         if fig_name:
             plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
+
+    def get_calibration_curve(self, df=None, method='perfect calibration', num_bin=100):
+        if method == 'perfect calibration':
+            return PerfectCC()
+        elif method == 'nonparametric binning':
+            return NPBinningCalibrationCurve(df, num_bin)
+        elif method == 'platt scaling':
+            return LogisticCalibrationCurve().fit(df)
 
     def plot_calibration_curve(self, df=None, num_bin=100, show_diagonal=False,
                                method='perfect calibration', fig_name=None, ax=None):
