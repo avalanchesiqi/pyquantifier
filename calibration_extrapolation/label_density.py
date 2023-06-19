@@ -11,6 +11,9 @@ class LabelDensity(DiscreteClassDensity):
     def get_density(self):
         pass
 
+    def plot(self):
+        pass
+
 
 class LabelDensityLookupTable(LabelDensity):
     def __int__(self):

@@ -25,3 +25,6 @@ class JointDensity:
 
     def get_density(self, score, label):
         pass
+
+    def plot(self):
+        pass
