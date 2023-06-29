@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
-from calibration_extrapolation.conf import *
-from calibration_extrapolation.util import prepare_canvas, one_gradient_plot, \
-    shift_axis, save_to_img
+from pyquantifier.conf import *
+from pyquantifier.distribution.mixture_distribution import MixtureDistribution
 
 
-class MixtureDistribution(object):
-    """A mixture distribution class.
+class DataGenerator:
+    """Intrinsic data generator and extrinsic data generator?
 
-    `MixtureDistribution` is a class to generate data samples of a continuous
-    random variable from a collection of given random variables with weights.
+    `DataGenerator` is a class to generate data samples.
+    output is d dataframe, with X, C(X) and GT
 
     Parameters
     ----------
@@ -58,10 +57,7 @@ class MixtureDistribution(object):
     """
 
     def __init__(self, components, weights):
-        self.components = components
-        self.num_component = len(components)
-        weight_sum = sum(weights)
-        self.weights = [weight / weight_sum for weight in weights]
+        super().__init__(components, weights)
 
     def pdf(self, x):
         """Probability density function at `x` of the given RV.
@@ -88,12 +84,12 @@ class MixtureDistribution(object):
         Parameters
         ----------
         size : int
-            Number of random variates.
+            Number of random variates
 
         Returns
         -------
         rvs : ndarray
-            Random variates of given `size`.
+            Random variates of given `size`
 
         """
         component_choices = np.random.choice(range(self.num_component),
@@ -110,7 +106,7 @@ class MixtureDistribution(object):
         Parameters
         ----------
         ax : AxesSubplot, optional
-            Axis to plot the pdf.
+            Axis to plot the pdf
         color : str, optional
             Main color for the plot
         fig_name : str, optional
@@ -138,9 +134,9 @@ class MixtureDistribution(object):
         Parameters
         ----------
         size : int
-            Number of random variates.
+            Number of random variates
         ax : AxesSubplot, optional
-            Axis to plot the pdf.
+            Axis to plot the pdf
         color : str, optional
             Main color for the plot
         fig_name : str, optional

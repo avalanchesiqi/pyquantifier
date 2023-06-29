@@ -4,9 +4,10 @@ from sklearn.linear_model import LogisticRegression
 
 from matplotlib import pyplot as plt
 
-from calibration_extrapolation.util import get_bin_idx, prepare_canvas
-from calibration_extrapolation.calibration_curve import PerfectCC, \
-    NPBinningCalibrationCurve, LogisticCalibrationCurve
+from pyquantifier.util import get_bin_idx
+from pyquantifier.plot import prepare_canvas
+from pyquantifier.distribution.calibration_curve import PerfectCC, \
+    InferredCalibrationCurve, InferredPlattScaling
 
 
 class DataHandler:
@@ -202,9 +203,9 @@ class DataHandler:
         if method == 'perfect calibration':
             return PerfectCC()
         elif method == 'nonparametric binning':
-            return NPBinningCalibrationCurve(df, num_bin)
+            return InferredCalibrationCurve(df, num_bin)
         elif method == 'platt scaling':
-            return LogisticCalibrationCurve().fit(df)
+            return InferredPlattScaling().fit(df)
 
     def plot_calibration_curve(self, df=None, num_bin=100, show_diagonal=False,
                                method='perfect calibration', fig_name=None, ax=None):
@@ -277,9 +278,9 @@ class DataHandler:
 
         self.plot_dist_classifier_scores(df, num_bin=num_bin, ax=axes[0])
         if calibration_method == 'nonparametric binning':
-            base_calibration_curve = NPBinningCalibrationCurve(df, num_bin=num_bin)
+            base_calibration_curve = InferredCalibrationCurve(df, num_bin=num_bin)
         elif calibration_method == 'platt scaling':
-            base_calibration_curve = LogisticCalibrationCurve(df, num_bin=num_bin)
+            base_calibration_curve = InferredPlattScaling(df, num_bin=num_bin)
         base_calibration_curve.plot(ax=axes[1])
         self.plot_stacked_frequency(df, num_bin=num_bin, ax=axes[2])
         self.plot_dist_gt_labels(df, ax=axes[3])

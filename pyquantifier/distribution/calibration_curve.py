@@ -3,7 +3,8 @@ from matplotlib import pyplot as plt
 from collections.abc import Iterable
 from sklearn.linear_model import LogisticRegression
 
-from calibration_extrapolation.util import prepare_canvas, get_bin_idx
+from pyquantifier.util import get_bin_idx
+from pyquantifier.plot import *
 
 
 class CalibrationCurve:
@@ -17,7 +18,7 @@ class CalibrationCurve:
     def get_calibrated_prob(self, cxs):
         pass
 
-    def plot(self, pos_color='#3d85c6', neg_color='#cc0000', show_diagonal=False, fig_name=False, ax=None):
+    def plot_line(self, show_diagonal=False, fig_name=False, ax=None):
         if ax is None:
             ax = prepare_canvas()
 
@@ -30,11 +31,11 @@ class CalibrationCurve:
             ax.fill_between([left_point, right_point], 
                             [0, 0], 
                             [y, y], 
-                            facecolor=pos_color, alpha=x, lw=0)
+                            facecolor=ColorPalette.CC2[0], alpha=x, lw=0)
             ax.fill_between([left_point, right_point], 
                             [y, y], 
                             [1, 1], 
-                            facecolor=neg_color, alpha=x, lw=0)
+                            facecolor=ColorPalette.CC2[1], alpha=x, lw=0)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 
@@ -92,7 +93,30 @@ class CalibrationLookupTable(CalibrationCurve):
             return self._find_cali_prob(cxs)
 
 
-class PlattScaling(CalibrationCurve):
+class ParametricPlattScaling(CalibrationCurve):
+    """
+    A logistic calibration curve. Set parameters directly
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.lr_regressor = LogisticRegression()
+
+    def set_params(self, w, b):
+        self.lr_regressor.coef_ = np.array([[w]])
+        self.lr_regressor.intercept_ = np.array([b])
+        self.lr_regressor.classes_ = np.array([0, 1])
+        self.x_axis = np.linspace(0, 1, 101)
+        self.y_axis = self.get_calibrated_prob(self.x_axis)
+
+    def get_params(self):
+        return self.lr_regressor.coef_, self.lr_regressor.intercept_
+
+    def get_calibrated_prob(self, cxs):
+        return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
+
+
+class InferredPlattScaling(CalibrationCurve):
     """
     A logistic calibration curve.
     """
@@ -100,17 +124,17 @@ class PlattScaling(CalibrationCurve):
         super().__init__()
         self.lr_regressor = LogisticRegression()
 
-    def fit(self, df):
-        train_CX = df['C(X)'].values.reshape(-1, 1)
-        train_GT = df['GT'].astype('bool').values
+    def fit(self, labeled_data):
+        # train_CX = df['C(X)'].values.reshape(-1, 1)
+        # train_GT = df['GT'].astype('bool').values
+        train_CX = np.array([cx for cx, _ in labeled_data]).reshape(-1, 1)
+        train_GT = np.array([gt for _, gt in labeled_data])
         self.lr_regressor = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
         self.x_axis = np.linspace(0, 1, 101)
         self.y_axis = self.get_calibrated_prob(self.x_axis)
-        
-    def sef_params(self, w, b):
-        self.lr_regressor.coef_ = np.array([[w]])
-        self.lr_regressor.intercept_ = np.array([b])
-        self.lr_regressor.classes_ = np.array([0, 1])
+
+    def get_params(self):
+        return self.lr_regressor.coef_, self.lr_regressor.intercept_
     
     def get_calibrated_prob(self, cxs):
         return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]

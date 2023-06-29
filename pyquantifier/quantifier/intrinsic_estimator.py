@@ -1,6 +1,6 @@
 import numpy as np
 
-from calibration_extrapolation.util import plot_stacked_frequency
+from pyquantifier.plot import plot_stacked_frequency
 
 
 class IntrinsicPrevalenceEstimator:

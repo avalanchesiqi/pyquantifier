@@ -1,7 +1,7 @@
 import numpy as np
 
-from calibration_extrapolation.calibration_curve import CalibrationCurve
-from calibration_extrapolation.util import plot_stacked_frequency
+from pyquantifier.distribution.calibration_curve import CalibrationCurve
+from pyquantifier.plot import plot_stacked_frequency
 
 
 class ExtrinsicPrevalenceEstimator:
