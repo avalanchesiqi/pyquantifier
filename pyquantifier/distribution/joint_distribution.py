@@ -12,6 +12,40 @@ from pyquantifier.plot import *
 from pyquantifier.util import *
 
 
+class JointDistribution:
+    def __init__(self, labeled_data):
+        self.labeled_data = labeled_data
+        self.cxs = [cx for cx, _ in labeled_data]
+        self.labels = [gt for _, gt in labeled_data]
+        self.classifier_density = InferredClassifierDensity(self.cxs)
+        self.label_density = InferredLabelDensity(self.labels)
+        self.class_conditional_densities = InferredConditionalDensities(self.labeled_data)
+        self.num_class = self.class_conditional_densities.num_class
+        self.calibration_curve = InferredPlattScaling()
+        self.calibration_curve.fit(self.labeled_data)
+
+    def get_density(self, cx, label):
+        pass
+
+    def sample(self, n):
+        pass
+
+    def classifier_distribution(self):
+        pass
+
+    def label_distribution(self):
+        pass
+
+    def calibration_curve(self):
+        pass
+
+    def class_conditional_probability_densities(self):
+        pass
+
+    def class_conditional_probability_density(self, label):
+        pass
+
+
 class EmpiricalJointDistribution:
     """
     A joint density between cx and gt.
