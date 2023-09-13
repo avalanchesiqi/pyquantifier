@@ -218,19 +218,19 @@ class JointDistribution:
 
         for label in self.labels:
             self.class_conditional_densities[label].plot(ax=axes[0])
-        axes[0].set_title('Classifier Conditional Densities')
+        axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1])
-        axes[1].set_title('Label Distribution')
+        axes[1].set_title('Label Density')
 
         prev_bottom = None
         for label in self.labels:
             prev_bottom = self.class_conditional_densities[label].plot(
                 ax=axes[2], bottom=prev_bottom, return_bottom=True)
-        axes[2].set_title('Joint Distribution')
+        axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3])
-        axes[3].set_title('Classifier Score Distribution')
+        axes[3].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
         axes[4].set_title('Calibration Curve')
