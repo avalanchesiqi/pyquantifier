@@ -1,4 +1,4 @@
-.DS_Store
+*.DS_Store
 *.pyc
 .ipynb_checkpoints/*
 __pycache__/*
@@ -7,3 +7,6 @@ img/*.png
 .idea
 .vscode
 env
+venv
+html
+lib

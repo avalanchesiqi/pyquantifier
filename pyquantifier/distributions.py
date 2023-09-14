@@ -108,7 +108,7 @@ class MixtureCUD(ContinuousUnivariateDistribution):
         self.weights = [weight / weight_sum for weight in weights]
 
     def get_density(self, score):
-        if isinstance(self.components[0], MixtureCUD):
+        if isinstance(self.components[0], MixtureCUD) or isinstance(self.components[0], BinnedCUD):
             return sum([weight * component.get_density(score)
                         for weight, component in
                         zip(self.weights, self.components)])
@@ -126,16 +126,18 @@ class MixtureCUD(ContinuousUnivariateDistribution):
         data_sample = np.choose(component_choices, component_samples)
         return data_sample
 
-    def plot(self, ax=None, bottom=None, return_bottom=False):
+    def plot(self, ax=None, bottom=None, return_bottom=False, weight=1, num_bin=100, density=False):
         if ax is None:
             ax = plt.gca()
 
         # plot a line chart of the distribution
-        x_axis = np.linspace(0, 1, 1000)
+        x_axis = np.linspace(0, 1, num_bin)
         if bottom:
-            y_axis = [self.get_density(x) + b_y for x, b_y in zip(x_axis, bottom)]
+            y_axis = [self.get_density(x) * weight + b_y for x, b_y in zip(x_axis, bottom)]
         else:
-            y_axis = [self.get_density(x) for x in x_axis]
+            y_axis = [self.get_density(x) * weight for x in x_axis]
+        if density:
+            y_axis = np.array(y_axis) / sum(y_axis)
         ax.plot(x_axis, y_axis)
         ax.set_xlabel('Score')
         ax.set_ylabel('Density')
@@ -156,20 +158,24 @@ class BinnedCUD(ContinuousUnivariateDistribution):
         # sample without replacement n items from all data
         return np.random.choice(self.data, size=n, replace=False)
 
-    def plot(self, num_bin=100, ax=None, bottom=None, return_bottom=False):
+    def plot(self, num_bin=20, ax=None, bottom=None, return_bottom=False, weight=1, density=False):
         if ax is None:
             ax = plt.gca()
         # plot a line chart of the distribution
+        # if 0 < weight <= 1:
+        #     new_data = list(self.data) * int(100 * weight)
+        # else:
+        new_data = self.data
         if bottom is not None:
-            bottom_hist, _ = ax.hist(self.data, bins=num_bin, density=True,
-                                    bottom=bottom)
+            bottom, _, _ = ax.hist(new_data, bins=num_bin, histtype='step',
+                                    bottom=bottom, density=density)
         else:
-            ax.hist(self.data, bins=num_bin, density=True)
+            bottom, _, _ = ax.hist(new_data, bins=num_bin, histtype='step', density=density)
         ax.set_xlabel('Score')
         ax.set_ylabel('Density')
         # plt.show()
         if return_bottom:
-            return bottom_hist
+            return bottom
 
 
 class NonParametricCUD(ContinuousUnivariateDistribution):
@@ -183,7 +189,7 @@ class NonParametricCUD(ContinuousUnivariateDistribution):
     def sample(self, n):
         pass  # TODO
 
-    def plot(self, num_bin=100, ax=None, bottom=None, return_bottom=False):
+    def plot(self, num_bin=100, ax=None, bottom=None, return_bottom=False, weight=1, density=False):
         if ax is None:
             ax = plt.gca()
         # plot a line chart of the distribution
@@ -191,6 +197,9 @@ class NonParametricCUD(ContinuousUnivariateDistribution):
             y_axis = self.y_axis + bottom
         else:
             y_axis = self.y_axis
+        y_axis *= weight
+        if density:
+            y_axis /= sum(y_axis)
         ax.plot(self.x_axis, y_axis)
         ax.set_xlabel('Score')
         ax.set_ylabel('Density')
@@ -212,24 +221,33 @@ class JointDistribution:
     def get_density(self, score, label):
         pass
 
-    def plot_five_distributions(self):
+    def plot_five_distributions(self, num_bin=100):
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
         for label in self.labels:
-            self.class_conditional_densities[label].plot(ax=axes[0])
+            self.class_conditional_densities[label].plot(ax=axes[0], num_bin=num_bin, density=True)
         axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1])
         axes[1].set_title('Label Density')
 
-        prev_bottom = None
-        for label in self.labels:
-            prev_bottom = self.class_conditional_densities[label].plot(
-                ax=axes[2], bottom=prev_bottom, return_bottom=True)
+        if isinstance(self, IntrinsicJointDistribution):
+            prev_bottom = None
+            for label in self.labels:
+                weight = self.label_distribution.get_density(label)
+                prev_bottom = self.class_conditional_densities[label].plot(
+                    ax=axes[2], num_bin=num_bin, bottom=prev_bottom, return_bottom=True, weight=weight)
+        else:
+            x_axis = np.linspace(0, 1, num_bin)
+            curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
+                        np.array([self.classifier_score_distribution.get_density(x)
+                                for x in x_axis])
+            axes[2].plot(x_axis, curve_pos)
+            self.classifier_score_distribution.plot(ax=axes[2], num_bin=num_bin, density=True)
         axes[2].set_title('Joint Density')
 
-        self.classifier_score_distribution.plot(ax=axes[3])
+        self.classifier_score_distribution.plot(ax=axes[3], num_bin=num_bin)
         axes[3].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
@@ -260,9 +278,9 @@ class IntrinsicJointDistribution(JointDistribution):
                    for label in self.labels]
         return MixtureCUD(components, weights)
 
-    def calculate_calibration_curve(self):
+    def calculate_calibration_curve(self, num_bin=100):
         # calculate the calibration curve
-        x_axis = np.linspace(0, 1, 1000)
+        x_axis = np.linspace(0, 1, num_bin)
         y_axis = [self.class_conditional_densities['pos'].get_density(x) *
                   self.label_distribution.get_density('pos') /
                   self.classifier_score_distribution.get_density(x)
@@ -283,8 +301,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         self.label_distribution = self.calculate_label_distribution()
         self.class_conditional_densities = self.calculate_class_conditional_densities()
 
-    def calculate_label_distribution(self):
-        x_axis = np.linspace(0, 1, 1000)
+    def calculate_label_distribution(self, num_bin=100):
+        x_axis = np.linspace(0, 1, num_bin)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
@@ -298,8 +316,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         area_neg /= total_area
         return MultinomialDUD(self.labels, np.array([area_pos, area_neg]))
 
-    def calculate_class_conditional_densities(self):
-        x_axis = np.linspace(0, 1, 1000)
+    def calculate_class_conditional_densities(self, num_bin=100):
+        x_axis = np.linspace(0, 1, num_bin)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
