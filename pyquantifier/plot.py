@@ -1,13 +1,27 @@
 import os
+import numpy as np
 from matplotlib import pyplot as plt
 from pyquantifier.conf import *
 
 
+num_fine_bin = 500
+fine_axis = np.linspace(0, 1, num_fine_bin + 1)
+num_coarse_bin = 10
+coarse_axis = np.linspace(0, 1, num_coarse_bin + 1)
+
+plt.rc('axes', labelsize=16)     # fontsize of the x and y labels
+plt.rc('xtick', labelsize=14)    # fontsize of the x tick labels
+plt.rc('ytick', labelsize=14)    # fontsize of the y tick labels
+plt.rc('legend', fontsize=14)    # fontsize of the legend
+
+
 class ColorPalette:
-    CC2 = ['#00539C', '#FFD662']
+    CC2 = ['#FFD662', '#00539C']
     CC3 = ['#f6511d', '#ffb400', '#00a6ed']
     CC4 = ['#4486F4', '#1CA45C', '#FF9E0F', '#DA483B']
     unknown_color = '#333333'
+    pos_color = '#00539C'
+    neg_color = '#FFD662'
 
 
 def save_to_img(img_name):
@@ -30,11 +44,13 @@ def prepare_canvas():
     return ax
 
 
-def one_gradient_plot(ax, x_axis, top_axis, bottom_axis=None, **kwds):
+def one_gradient_plot(ax, x_axis, top_axis, **kwds):
+    bottom_axis = kwds.get('bottom_axis', None)
     color = kwds.get('color', ColorPalette.unknown_color)
     label = kwds.get('label', '')
     edge = kwds.get('edge', True)
     edge_color = kwds.get('edge_color', color)
+    weight = kwds.get('weight', True)
 
     num_bin = len(x_axis)
     bin_width = 1 / num_bin
@@ -48,12 +64,12 @@ def one_gradient_plot(ax, x_axis, top_axis, bottom_axis=None, **kwds):
         right_coord = x + bin_margin
 
         ax.fill_between([left_coord, right_coord],
-                        [top_coord, top_coord],
+                        [weight * (top_coord + bottom_coord), weight * (top_coord + bottom_coord)],
                         [bottom_coord, bottom_coord],
                         facecolor=color, alpha=x, lw=0)
 
     if edge:
-        ax.plot(x_axis, top_axis, label=label, c=edge_color, lw=2, zorder=40)
+        ax.plot(x_axis, weight * (top_axis + bottom_axis), label=label, c=edge_color, lw=2, zorder=40)
 
 
 def two_gradient_plot(ax, x_axis, split_axis, color_top, color_bottom):

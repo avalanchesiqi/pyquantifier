@@ -52,7 +52,7 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
 
     def estimate(self, cx_array):
-        num_bin = len(self.positivity_density)
+        num_bin = self.positivity_density.get_length()
         x_axis = np.linspace(0, 1, num_bin + 1)
         cx_hist, _ = np.histogram(cx_array, bins=x_axis, density=True)
 
@@ -60,7 +60,7 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         best_p_p = 0
 
         for p_p in np.linspace(0, 1, 101):
-            dist = self.hellinger(cx_hist, self.positivity_density * p_p + self.negativity_density * (1 - p_p))
+            dist = self.hellinger(cx_hist, self.positivity_density.pdfs() * p_p + self.negativity_density.pdfs() * (1 - p_p))
             if dist < min_dist:
                 min_dist = dist
                 best_p_p = p_p

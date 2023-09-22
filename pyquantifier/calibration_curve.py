@@ -32,11 +32,11 @@ class CalibrationCurve:
             ax.fill_between([left_point, right_point],
                             [0, 0],
                             [y, y],
-                            facecolor=ColorPalette.CC2[0], alpha=x, lw=0)
+                            facecolor=ColorPalette.CC2[1], alpha=x, lw=0)
             ax.fill_between([left_point, right_point],
                             [y, y],
                             [1, 1],
-                            facecolor=ColorPalette.CC2[1], alpha=x, lw=0)
+                            facecolor=ColorPalette.CC2[0], alpha=x, lw=0)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 
