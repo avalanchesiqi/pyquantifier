@@ -43,7 +43,6 @@ def generate_annotated_dataset_dists():
             toxic_label_list.append(toxic_label)
             hot_label_list.append(hot_label)
 
-
     all_labels = ['pos', 'neg']
     cached_dists = {}
     for metric in ['hate', 'offensive', 'toxic', 'hot']:
@@ -58,15 +57,10 @@ def generate_annotated_dataset_dists():
     pickle.dump(cached_dists, open('hot_speech/hot_cached_dists.pkl', 'wb'))
 
 
-def main():
-    # ------- Start TODO ---------- #
-    # TODO: load the toxicity scores of a day, as a list
-    cx_list = np.random.rand(10000).tolist()
-    # ------- END TODO ---------- #
-
+def get_hot_values(toxicity_values):
     # build a dataset object from the list
-    num_items = len(cx_list)
-    df = pd.DataFrame.from_dict({'uid': list(range(num_items)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
+    num_items = len(toxicity_values)
+    df = pd.DataFrame.from_dict({'uid': list(range(num_items)), 'pos': toxicity_values, 'neg': 1-np.array(toxicity_values)})
     dataset = Dataset(df=df, labels=['pos', 'neg'])
 
     # load the calibration curve of the hot speech dataset
@@ -75,17 +69,23 @@ def main():
         generate_annotated_dataset_dists()
     cached_dists = pickle.load(open(cached_dists_filepath, 'rb'))
 
+    result = {}
     for metric in ['hate', 'offensive', 'toxic', 'hot']:
         calibration_curve = cached_dists[f'{metric}_calibration_curve']
         class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
 
-        print('for metric:', metric)
+        # print('for metric:', metric)
 
         ex_prevalence_est = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
-        print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+        # print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+        result[metric] = ex_prevalence_est
 
         # in_prevalence_est = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
         # print(f'instrinsic estimate: {in_prevalence_est:.4f} on the a simulated data')
 
+    return result
+
+
 if __name__ == '__main__':
-    main()
+    cx_list = np.random.rand(10000).tolist()
+    print(get_hot_values(cx_list))
