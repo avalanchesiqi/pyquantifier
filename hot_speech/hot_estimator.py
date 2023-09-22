@@ -1,4 +1,6 @@
 import os, sys, json, pickle
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -15,7 +17,7 @@ def generate_calibration_curve():
 
     all_labels = ['pos', 'neg']
     label_map = {True: 'pos', False: 'neg'}
-    with open('labeled_hot_data.json', 'r') as fin:
+    with open('hot_speech/labeled_hot_data.json', 'r') as fin:
         for line in fin:
             comment_json = json.loads(line.rstrip())
             toxicity = comment_json['new_toxicity']
@@ -30,13 +32,15 @@ def generate_calibration_curve():
     hot_dataset = Dataset(df=hot_df, labels=all_labels)
 
     calibration_curve = hot_dataset.generate_calibration_curve(method='platt scaling')
-    pickle.dump(calibration_curve, open('calibration_curve.pkl', 'wb'))
+    pickle.dump(calibration_curve, open('hot_speech/calibration_curve.pkl', 'wb'))
 
 
 def main():
-    if not os.path.exists('calibration_curve.pkl'):
+    # load the calibration curve of the hot speech dataset
+    calibration_curve_filepath = 'hot_speech/calibration_curve.pkl'
+    if not os.path.exists(calibration_curve_filepath):
         generate_calibration_curve()
-    calibration_curve = pickle.load(open('calibration_curve.pkl', 'rb'))
+    calibration_curve = pickle.load(open(calibration_curve_filepath, 'rb'))
 
     # TODO: load the toxicity scores of a day, as a list
     cx_list = np.random.rand(10000).tolist()
