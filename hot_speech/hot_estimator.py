@@ -1,58 +1,91 @@
 import os, sys, json, pickle
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from collections import Counter
 import numpy as np
 import pandas as pd
-from collections import Counter
+
 from pyquantifier.data import Dataset
 
 
-# generate calibration curve
-def generate_calibration_curve():
+def get_majority_vote(lst):
+    return Counter(lst).most_common(1)[0][0]
+
+
+# generate distributions of the annotated dataset
+def generate_annotated_dataset_dists():
     uid_list = []
     pos_list = []
     neg_list = []
-    gt_label_list = []
-    uid = 1
+    hate_label_list = []
+    offensive_label_list = []
+    toxic_label_list = []
+    hot_label_list = []
+    uid = 0
 
-    all_labels = ['pos', 'neg']
     label_map = {True: 'pos', False: 'neg'}
-    with open('hot_speech/labeled_hot_data.json', 'r') as fin:
+    with open('hot_speech/labeled_hot_data_202108.json', 'r') as fin:
         for line in fin:
             comment_json = json.loads(line.rstrip())
-            toxicity = comment_json['new_toxicity']
-            toxic_label = label_map[Counter([x for x, y in comment_json['composite_toxic']]).most_common(1)[0][0]]
-            uid_list.append(uid)
-            pos_list.append(toxicity)
-            neg_list.append(1-toxicity)
-            gt_label_list.append(toxic_label)
+            toxicity_score = comment_json['toxicity']
+            hate_label = label_map[get_majority_vote([x[0] for x in comment_json['composite_hate']])]
+            offensive_label = label_map[get_majority_vote([x[0] for x in comment_json['composite_offensive']])]
+            toxic_label = label_map[get_majority_vote([x[0] for x in comment_json['composite_toxic']])]
+            hot_label = label_map[get_majority_vote([(x[0] | y[0] | z[0]) for x, y, z 
+                                                     in zip(comment_json['composite_hate'], comment_json['composite_offensive'], comment_json['composite_toxic'])])]
+
             uid += 1
+            uid_list.append(uid)
+            pos_list.append(toxicity_score)
+            neg_list.append(1-toxicity_score)
+            hate_label_list.append(hate_label)
+            offensive_label_list.append(offensive_label)
+            toxic_label_list.append(toxic_label)
+            hot_label_list.append(hot_label)
 
-    hot_df = pd.DataFrame.from_dict({'uid': uid_list, 'pos': pos_list, 'neg': neg_list, 'gt_label': gt_label_list})
-    hot_dataset = Dataset(df=hot_df, labels=all_labels)
 
-    calibration_curve = hot_dataset.generate_calibration_curve(method='platt scaling')
-    pickle.dump(calibration_curve, open('hot_speech/calibration_curve.pkl', 'wb'))
+    all_labels = ['pos', 'neg']
+    cached_dists = {}
+    for metric in ['hate', 'offensive', 'toxic', 'hot']:
+        df = pd.DataFrame.from_dict({'uid': uid_list, 'pos': pos_list, 'neg': neg_list, 'gt_label': eval(f'{metric}_label_list')})
+        dataset = Dataset(df=df, labels=all_labels)
+        calibration_curve = dataset.generate_calibration_curve(method='platt scaling')
+        class_conditional_densities = dataset.infer_class_conditional_densities()
+
+        cached_dists[f'{metric}_calibration_curve'] = calibration_curve
+        cached_dists[f'{metric}_class_conditional_densities'] = class_conditional_densities
+        
+    pickle.dump(cached_dists, open('hot_speech/hot_cached_dists.pkl', 'wb'))
 
 
 def main():
-    # load the calibration curve of the hot speech dataset
-    calibration_curve_filepath = 'hot_speech/calibration_curve.pkl'
-    if not os.path.exists(calibration_curve_filepath):
-        generate_calibration_curve()
-    calibration_curve = pickle.load(open(calibration_curve_filepath, 'rb'))
-
+    # ------- Start TODO ---------- #
     # TODO: load the toxicity scores of a day, as a list
     cx_list = np.random.rand(10000).tolist()
-    num_items = len(cx_list)
+    # ------- END TODO ---------- #
 
     # build a dataset object from the list
+    num_items = len(cx_list)
     df = pd.DataFrame.from_dict({'uid': list(range(num_items)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
     dataset = Dataset(df=df, labels=['pos', 'neg'])
 
-    prevalence_est = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
-    print(f'use platt scaling: {prevalence_est:.4f} on the a simulated data')
+    # load the calibration curve of the hot speech dataset
+    cached_dists_filepath = 'hot_speech/hot_cached_dists.pkl'
+    if not os.path.exists(cached_dists_filepath):
+        generate_annotated_dataset_dists()
+    cached_dists = pickle.load(open(cached_dists_filepath, 'rb'))
 
+    for metric in ['hate', 'offensive', 'toxic', 'hot']:
+        calibration_curve = cached_dists[f'{metric}_calibration_curve']
+        class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
+
+        print('for metric:', metric)
+
+        ex_prevalence_est = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
+        print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+
+        # in_prevalence_est = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
+        # print(f'instrinsic estimate: {in_prevalence_est:.4f} on the a simulated data')
 
 if __name__ == '__main__':
     main()
