@@ -1,15 +1,55 @@
-import os, sys, json, pickle
+import os, sys, json, pickle, re
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import datetime, timedelta
 from collections import Counter
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from pyquantifier.data import Dataset
 
 
+def obj2str(datetime_obj, str_format='%Y-%m-%d %H:%M:%S'):
+    return datetime_obj.strftime(str_format)
+
+
+def str2obj(datetime_str, str_format='%Y-%m-%d %H:%M:%S'):
+    return datetime.strptime(datetime_str, str_format)
+
+
 def get_majority_vote(lst):
     return Counter(lst).most_common(1)[0][0]
+
+
+def preprocess(text_string, is_reddit):
+    """Accepts a text string and replaces:
+    1) lots of whitespace with one instance
+    2) remove urls
+    3) remove mentions
+    4) remove quoted text on Reddit
+    5) skip removed, deleted, bot comments on Reddit
+
+    This allows us to get standardized counts of urls and mentions.
+    Without caring about specific people mentioned.
+    """
+    if is_reddit:
+        if text_string == '[removed]' or text_string == '[deleted]' \
+                or 'I am a bot' in text_string:
+            return ''
+        reddit_quote_regex = r'>[\w\-\s]+(\n)\1'
+        text_string = re.sub(reddit_quote_regex, ' ', text_string)
+
+    space_pattern = r'\s+'
+    text_string = re.sub(space_pattern, ' ', text_string)
+
+    giant_url_regex = (r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|'
+                       r'[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+')
+    text_string = re.sub(giant_url_regex, ' ', text_string)
+
+    mention_regex = r'@[\w\-]+'
+    text_string = re.sub(mention_regex, ' ', text_string)
+    return text_string.strip()
 
 
 # generate distributions of the annotated dataset
@@ -43,14 +83,13 @@ def generate_annotated_dataset_dists():
             toxic_label_list.append(toxic_label)
             hot_label_list.append(hot_label)
 
-
     all_labels = ['pos', 'neg']
     cached_dists = {}
     for metric in ['hate', 'offensive', 'toxic', 'hot']:
         df = pd.DataFrame.from_dict({'uid': uid_list, 'pos': pos_list, 'neg': neg_list, 'gt_label': eval(f'{metric}_label_list')})
         dataset = Dataset(df=df, labels=all_labels)
         calibration_curve = dataset.generate_calibration_curve(method='platt scaling')
-        class_conditional_densities = dataset.infer_class_conditional_densities()
+        class_conditional_densities = dataset.infer_class_conditional_densities(num_bin=10)
 
         cached_dists[f'{metric}_calibration_curve'] = calibration_curve
         cached_dists[f'{metric}_class_conditional_densities'] = class_conditional_densities
@@ -58,15 +97,13 @@ def generate_annotated_dataset_dists():
     pickle.dump(cached_dists, open('hot_speech/hot_cached_dists.pkl', 'wb'))
 
 
-def main():
-    # ------- Start TODO ---------- #
-    # TODO: load the toxicity scores of a day, as a list
-    cx_list = np.random.rand(10000).tolist()
-    # ------- END TODO ---------- #
-
+def hot_prevalence_estimate(cx_list, frequency=False):
     # build a dataset object from the list
-    num_items = len(cx_list)
-    df = pd.DataFrame.from_dict({'uid': list(range(num_items)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
+    num_item = len(cx_list)
+    if num_item == 0:
+        return [0, 0, 0, 0, 0]
+
+    df = pd.DataFrame.from_dict({'uid': list(range(num_item)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
     dataset = Dataset(df=df, labels=['pos', 'neg'])
 
     # load the calibration curve of the hot speech dataset
@@ -75,17 +112,103 @@ def main():
         generate_annotated_dataset_dists()
     cached_dists = pickle.load(open(cached_dists_filepath, 'rb'))
 
+    ret_list = [num_item]
     for metric in ['hate', 'offensive', 'toxic', 'hot']:
+        # print('for metric:', metric)
+
         calibration_curve = cached_dists[f'{metric}_calibration_curve']
-        class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
-
-        print('for metric:', metric)
-
         ex_prevalence_est = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
-        print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+        # print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+        if frequency:
+            ret_list.append(ex_prevalence_est * num_item)
+        else:
+            ret_list.append(ex_prevalence_est)
 
+        # class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
         # in_prevalence_est = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
         # print(f'instrinsic estimate: {in_prevalence_est:.4f} on the a simulated data')
+    return ret_list
+
+
+# load data
+def load_2022_comments(filepath):
+    new_platform2field_dict = {'reddit': 'selected_reddit_comments',
+                               'twitter': 'selected_twitter_replies',
+                               'youtube': 'selected_youtube_comments'}
+    platform_list = ['reddit', 'twitter', 'youtube']
+
+    start_date = datetime(2022, 1, 1)
+    end_date = datetime(2022, 12, 31)
+    time_duration = (end_date - start_date).days + 1
+    comment_2022_dict = {}
+    
+    for time_lag in range(time_duration):
+        target_date = obj2str(start_date + timedelta(days=time_lag), '%Y-%m-%d')
+        comment_2022_dict[target_date] = {
+            'reddit_toxic_list': [],
+            'twitter_toxic_list': [],
+            'youtube_toxic_list': [],
+        }
+    
+    with open(filepath, 'r') as fin:            
+        for line in fin:
+            url_json = json.loads(line.rstrip())
+            url_published_at = url_json['url_published_at'][:10]
+            for platform in platform_list:
+                for comment in url_json[new_platform2field_dict[platform]]:
+                    if platform == 'reddit':
+                        is_reddit = True
+                    else:
+                        is_reddit = False
+                    text = comment['text']
+                    processed_text = preprocess(text, is_reddit)
+
+                    if processed_text:
+                        toxicity_score = comment['toxicity_0319']
+                        if isinstance(toxicity_score, float):
+                            comment_2022_dict[url_published_at][f'{platform}_toxic_list'].append(toxicity_score)
+
+    return comment_2022_dict
+
+
+def main():
+    # ----------------- #
+    # load every day data
+    cached_comment_2022_dict_filepath = 'hot_speech/hot_comment_2022_dict.pkl'
+    if not os.path.exists(cached_comment_2022_dict_filepath):
+        comment_2022_dict = load_2022_comments('hot_speech/2022_classified_hot_comments.json')
+        pickle.dump(comment_2022_dict, open(cached_comment_2022_dict_filepath, 'wb'))
+    else:
+        comment_2022_dict = pickle.load(open(cached_comment_2022_dict_filepath, 'rb'))
+    # ----------------- #
+
+    platform_list = ['reddit', 'twitter', 'youtube']
+    date_list = sorted(comment_2022_dict.keys())
+    data_dict = {'date': date_list}
+    for platform in platform_list:
+        data_dict[f'{platform}_num_comment_list'] = []
+        data_dict[f'{platform}_hate_list'] = []
+        data_dict[f'{platform}_offensive_list'] = []
+        data_dict[f'{platform}_toxic_list'] = []
+        data_dict[f'{platform}_hot_list'] = []
+
+    for day in date_list:
+        for platform in platform_list:
+            platform_cx_list = comment_2022_dict[day][f'{platform}_toxic_list']
+            num_item, hate, offensive, toxic, hot = hot_prevalence_estimate(platform_cx_list, frequency=True)
+            data_dict[f'{platform}_num_comment_list'].append(num_item)
+            data_dict[f'{platform}_hate_list'].append(hate)
+            data_dict[f'{platform}_offensive_list'].append(offensive)
+            data_dict[f'{platform}_toxic_list'].append(toxic)
+            data_dict[f'{platform}_hot_list'].append(hot)
+
+    data_df = pd.DataFrame(data_dict)
+    data_df.index = data_df.date
+    data_df.index = pd.to_datetime(data_df.index)
+    data_df.drop(columns=['date'], inplace=True)
+
+    data_df.to_csv('hot_speech/hot_prevalence_estimation_2022.csv')
+
 
 if __name__ == '__main__':
     main()

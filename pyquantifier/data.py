@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from pyquantifier.plot import *
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD, ExtrinsicJointDistribution, IntrinsicJointDistribution
 from sklearn.linear_model import LogisticRegression
-from pyquantifier.calibration_curve import PlattScaling, NonParametricCalibrationCurve, CalibrationCurve
+from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
 from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
 from pyquantifier.util import get_bin_idx
 
@@ -64,6 +65,19 @@ class Dataset:
             self.df = self.to_dataframe(items)
         else:
             raise ValueError('either df or items must be provided')
+        self.label_distribution = None
+        self.class_conditional_densities = None
+        self.classifier_score_distribution = None
+        self.calibration_curve = None
+    
+    def update_dataset_model(self, num_bin):
+        self.class_conditional_densities = self.infer_class_conditional_densities(num_bin)
+        self.label_distribution = self.infer_label_distribution()
+        self.classifier_score_distribution = self.infer_classifier_score_distribution(num_bin)
+        self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
+
+    def update_calibration_curve(self, **kwds):
+        self.calibration_curve = self.generate_calibration_curve(**kwds)
 
     @staticmethod
     def to_dataframe(items):
@@ -108,6 +122,46 @@ class Dataset:
             A new dataset object with n items
         """
         return Dataset(df=self.df.sample(n, replace=replace), labels=self.labels)
+    
+    @staticmethod
+    def _get_neyman_allocation(bin_hist, total_n):
+        """Get the neyman allocation for each bin.
+
+        Parameters
+        ----------
+        bin_hist : list
+            A list of number of items in each bin
+        total_n : int
+            Total number of items to sample
+        
+        Returns
+        -------
+        dict
+            A dictionary of bin index and number of items to sample from each bin
+        """
+        N = np.array(bin_hist)
+        step = 1 / len(bin_hist)
+        K = np.arange(step/2, 1, step)
+        S = np.sqrt(K * (1 - K))
+        return {i: round(n_in_bin) for i, n_in_bin in enumerate(total_n * (N * S) / sum(N * S))}
+
+    @staticmethod    
+    def _sample_items_from_bin(df, bin_dict):
+        """Sample varying numbers of items based on bin_dict.
+
+        Parameters
+        ----------
+        df : DataFrame
+            A pandas DataFrame object
+        bin_dict : dict
+            A dictionary of bin index and number of items to sample from each bin
+        
+        Returns
+        -------
+        DataFrame
+            A pandas DataFrame object
+        """
+        return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), replace=False)
 
     def select_sample_for_annotation(self, n, strategy='random', bins=10):
         """Select n items from the dataset for annotation.
@@ -126,43 +180,6 @@ class Dataset:
         Dataset
             A new dataset object with n items
         """
-        def _sample_items_from_bin(df, bin_dict):
-            """Sample varying numbers of items based on bin_dict.
-
-            Parameters
-            ----------
-            df : DataFrame
-                A pandas DataFrame object
-            bin_dict : dict
-                A dictionary of bin index and number of items to sample from each bin
-            
-            Returns
-            -------
-            DataFrame
-                A pandas DataFrame object
-            """
-            return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), replace=False)
-        
-        def _get_neyman_allocation(bin_hist, total_n):
-            """Get the neyman allocation for each bin.
-
-            Parameters
-            ----------
-            bin_hist : list
-                A list of number of items in each bin
-            total_n : int
-                Total number of items to sample
-            
-            Returns
-            -------
-            dict
-                A dictionary of bin index and number of items to sample from each bin
-            """
-            N = np.array(bin_hist)
-            step = 1 / len(bin_hist)
-            K = np.arange(step/2, 1, step)
-            S = np.sqrt(K * (1 - K))
-            return {i: n_in_bin for i, n_in_bin in enumerate(total_n * (N * S) / sum(N * S))}
 
         if strategy == 'random':
             return self.sample(n)
@@ -176,11 +193,11 @@ class Dataset:
                 bin_dict = {i: n_per_bin for i in range(bins)}
             else:  # neyman
                 bin_hist = df['bin'].value_counts(sort=True, ascending=True).tolist()
-                bin_dict = _get_neyman_allocation(bin_hist, n)
+                bin_dict = self._get_neyman_allocation(bin_hist, n)
 
             # sample items from each bin
             df = df.groupby(by='bin', sort=True, group_keys=True)\
-                .apply(_sample_items_from_bin, bin_dict=bin_dict)
+                .apply(self._sample_items_from_bin, bin_dict=bin_dict)
             # drop the bin column
             df = df.drop(columns=['bin'])
             return Dataset(df=df, labels=self.labels)
@@ -198,12 +215,6 @@ class Dataset:
         """
         # annotate the sampled items with gt_labels
         self.df['gt_label'] = gt_labels
-
-    def profile_dataset(self):
-        return IntrinsicJointDistribution(self.labels,
-                                          self.infer_label_distribution(),
-                                          self.infer_class_conditional_densities())
-
     
     def infer_label_distribution(self):
         """Infer the label distribution from the dataset.
@@ -215,12 +226,12 @@ class Dataset:
         """
         return BinnedDUD(self.df['gt_label'].tolist())
 
-    def infer_classifier_score_distribution(self, bins=10):
+    def infer_classifier_score_distribution(self, num_bin):
         """Infer the classifier score distribution from the dataset.
 
         Parameters
         ----------
-        bins : int
+        num_bin : int
             Number of bins to use
 
         Returns
@@ -228,16 +239,18 @@ class Dataset:
         BinnedDUD
             A BinnedDUD object
         """
-        return BinnedCUD(self.df['pos'].tolist(), bins)
+        x_axis = np.arange(0.5 / num_bin, 1, 1 / num_bin)
+        y_axis, dummy = np.histogram(self.df['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
-    def infer_class_conditional_density(self, label, bins=10):
+    def infer_class_conditional_density(self, label, num_bin):
         """Infer the class conditional density for a given label class.
 
         Parameters
         ----------
         label : str
             A label class
-        bins : int
+        num_bin : int
             Number of bins to use
 
         Returns
@@ -245,9 +258,11 @@ class Dataset:
         BinnedDUD
             A BinnedDUD object
         """
-        return BinnedCUD(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins)
+        x_axis = np.arange(0.5 / num_bin, 1, 1 / num_bin)
+        y_axis, dummy = np.histogram(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
-    def infer_class_conditional_densities(self):
+    def infer_class_conditional_densities(self, num_bin):
         """Infer the class conditional densities for all label classes.
 
         Returns
@@ -255,7 +270,7 @@ class Dataset:
         dict
             A dictionary of BinnedDUD objects
         """
-        return {label: self.infer_class_conditional_density(label)
+        return {label: self.infer_class_conditional_density(label, num_bin)
                 for label in self.labels}
 
     def generate_calibration_curve(self, method='platt scaling', num_bin=10):
@@ -284,32 +299,30 @@ class Dataset:
         elif method == 'temperature scaling':
             pass
         elif method == 'nonparametric binning':
-            x_axis = np.linspace(0, 1, num_bin)
+            x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
             # create a new column based on the pos column
             df['bin'] = df.apply(lambda row: get_bin_idx(row['pos'], size=num_bin), axis=1)
             y_axis = [len(df[(df['bin']==bin_idx) & (df['gt_label']=='pos')]) / len(df[df['bin']==bin_idx]) for bin_idx, _ in enumerate(x_axis)]
-            prob_cali_obj = NonParametricCalibrationCurve()
-            prob_cali_obj.set_x_axis(x_axis)
-            prob_cali_obj.set_y_axis(y_axis)
+            prob_cali_obj = BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
             return prob_cali_obj
         else:
             raise ValueError('unsupported calibration method, '
                             'options are platt scaling, temperature scaling, or nonparametric binning.')
     
-    def infer_joint_density(self):
-        """Infer the joint density of the dataset.
+    # def infer_joint_density(self):
+    #     """Infer the joint density of the dataset.
 
-        Returns
-        -------
-        ExtrinsicJointDistribution
-            An ExtrinsicJointDistribution object
-        """
-        return ExtrinsicJointDistribution(self.labels,
-                                          self.infer_classifier_score_distribution(bins=10),
-                                          self.generate_calibration_curve('platt scaling'))
+    #     Returns
+    #     -------
+    #     ExtrinsicJointDistribution
+    #         An ExtrinsicJointDistribution object
+    #     """
+    #     return ExtrinsicJointDistribution(self.labels,
+    #                                       self.infer_classifier_score_distribution(num_bin=10),
+    #                                       self.generate_calibration_curve('platt scaling'))
 
-    def plot(self, num_bin=20):
+    def profile_dataset(self, num_bin=10):
         """Plot the five distributions of the dataset.
 
         Parameters
@@ -320,30 +333,24 @@ class Dataset:
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
+        self.update_dataset_model(num_bin=num_bin)
+
         for label in self.labels:
-            class_conditional_densitiy_object = self.infer_class_conditional_density(label)
-            class_conditional_densitiy_object.plot(ax=axes[0], num_bin=num_bin, density=True)
+            self.class_conditional_densities[label].plot(ax=axes[0], color=ColorPalette[label])
         axes[0].set_title('Class Conditional Densities')
 
-        self.label_distribution.plot(ax=axes[1])
+        self.label_distribution.plot(ax=axes[1], ci=True)
         axes[1].set_title('Label Density')
 
-        if isinstance(self, IntrinsicJointDistribution):
-            prev_bottom = None
-            for label in self.labels:
-                weight = self.label_distribution.get_density(label)
-                prev_bottom = self.class_conditional_densities[label].plot(
-                    ax=axes[2], num_bin=num_bin, bottom=prev_bottom, return_bottom=True, weight=weight)
-        else:
-            x_axis = np.linspace(0, 1, num_bin)
-            curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
-                        np.array([self.classifier_score_distribution.get_density(x)
-                                for x in x_axis])
-            axes[2].plot(x_axis, curve_pos)
-            self.classifier_score_distribution.plot(ax=axes[2], num_bin=num_bin, density=True)
+        prev_bottom = None
+        for label in self.labels:
+            weight = self.label_distribution.get_density(label)
+            prev_bottom = self.class_conditional_densities[label].plot(
+                ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
+                return_bottom=True, weight=weight)
         axes[2].set_title('Joint Density')
 
-        self.classifier_score_distribution.plot(ax=axes[3], num_bin=num_bin)
+        self.classifier_score_distribution.plot(ax=axes[3], density=True)
         axes[3].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
@@ -353,6 +360,8 @@ class Dataset:
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.tick_params(axis='both', which='major')
+        
+        plt.tight_layout()
 
     def instrinsic_estimate(self, class_conditional_densities: dict, method='mixture model'):
         if method == 'mixture model':

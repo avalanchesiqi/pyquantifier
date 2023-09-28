@@ -3,13 +3,15 @@ from collections.abc import Iterable
 import numpy as np
 import matplotlib.pyplot as plt
 from pyquantifier.calibration_curve import CalibrationCurve, \
-    NonParametricCalibrationCurve
+    BinnedCalibrationCurve
 from pyquantifier.plot import *
 
 
 class UnivariateDistribution(ABC):
+    """A base class for univariate distributions.
+    """
     @abstractmethod
-    def get_density(self, val):
+    def get_density(self):
         pass
 
     @abstractmethod
@@ -17,88 +19,273 @@ class UnivariateDistribution(ABC):
         pass
 
 
-class DiscreteUnivariateDistribution(UnivariateDistribution, ABC):
+class EmpiricalData:
+    """A base class for empirical data.
+    """
     def __int__(self):
+        """Initialize the class.
+        
+        Parameters
+        ----------
+        data : list
+            Data samples
+        """
+        self.data = None
+
+    def sample(self, n, replace=False):
+        """Sample random variates of given size `n`.
+        
+        Parameters
+        ----------
+        n : int
+            Number of samples to generate
+        replace : bool, optional
+            Whether to sample with replacement or not
+            
+        Returns
+        -------
+        rvs : ndarray
+            Random variates of given `size`
+        """
+        return np.random.choice(self.data, size=n, replace=replace)
+
+
+class DiscreteUnivariateDistribution(UnivariateDistribution):
+    """A base class for discrete univariate distributions.
+    """
+    def __int__(self):
+        """Initialize the class.
+        
+        Parameters
+        ----------
+        labels : list
+            Class labels
+        
+        probs : list
+            Non-negative probabilities for the labels
+        """
         self.labels = None
         self.probs = None
+    
+    def get_label_prob_dict(self):
+        """Get the dictionary of labels and their probabilities.
+        
+        Returns
+        -------
+        label_prob_dict : dict
+            Dictionary of labels and their probabilities
+        """
+        return dict(zip(self.labels, self.probs))
 
     def get_density(self, label: str):
-        # given a label class, return the density of this class
-        return self.probs[self.labels.index(label)]
+        """Get the probability density of a given label.
+
+        Parameters
+        ----------
+        label : str
+            Label to be evaluated
+
+        Returns
+        -------
+        density : float
+            Probability density of the given label
+        """
+        return self.label_prob_dict[label]
+    
+    def get_ci(self):
+        pass
+    
+    def plot(self, **kwds):
+        """Plot bar chart of discrete univariate distributions.
+        """
+        ax = kwds.pop('ax', None)
+        if ax is None:
+            ax = prepare_canvas()
+
+        x_axis = np.arange(len(self.labels))
+        label_axis = sorted(self.labels)
+        density_axis = [self.get_density(label) for label in label_axis]
+        color_axis = [ColorPalette[label] for label in label_axis]
+
+        ci = kwds.pop('ci', False)
+        yerr = [self.get_ci(label) for label in label_axis] if ci else None
+
+        ax.bar(x_axis, density_axis, width=0.7, color=color_axis, lw=2, edgecolor='k', yerr=yerr)
+        
+        ax.set_xticks(x_axis)
+        ax.set_xticklabels(label_axis)
+        ax.set_ylabel('density')
+        ax.set_yticks([0, 0.5, 1])
+
+        for x, y in zip(x_axis, density_axis):
+            ax.text(x, y + 0.01, f'{y:.2f}', color='k', ha='center', va='bottom', fontsize=16)
 
 
 class MultinomialDUD(DiscreteUnivariateDistribution):
+    """A class for parametric multinomial discrete univariate distributions.
+    
+    `MultinomialDUD` is a class to generate discrete data samples
+    of a random variable from a collection of parametric
+    sub-distributions with weights.
+    
+    Parameters
+    ----------
+    labels : list
+        Labels of the multinomial distribution
+    
+    probs : list
+        Non-negative probabilities for the labels
+
+    Methods
+    ----------
+    generate_data
+
+    Examples
+    --------
+    If you want to generate a multinomial distribution consisting of two
+    classes and the weights for each class are 2:1, you can do the following:
+
+    >>> mdud_rv = MultinomialDUD(labels=['neg', 'pos'], probs=[2, 1])
+
+    You can sample 10,000 data points from the multinomial distribution,
+
+    >>> mdud_rv.generate_data(n=10000)
+
+    You can obtain the probability density of any class
+
+    >>> mdud_rv.get_density('pos')
+    """
     def __init__(self, labels, probs):
         self.labels = labels
         self.probs = np.array(probs) / np.sum(probs)  # normalize the probs
+        self.label_prob_dict = self.get_label_prob_dict()
 
     def generate_data(self, n):
-        # generate a simulated dataset of size n
+        """Generate a simulated dataset of size `n`.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to generate
+        
+        Returns
+        -------
+        rvs : ndarray
+            Random variates of given `size`
+        """
         return np.random.choice(self.labels, size=n, replace=True, p=self.probs)
 
-    def plot(self, **kwds):
-        plot_empirical_bar({k: v for k, v in zip(self.labels, self.probs)}, **kwds)
 
+class BinnedDUD(DiscreteUnivariateDistribution, EmpiricalData):
+    """A class for binned discrete univariate distributions.
+    
+    `BinnedDUD` is a class to bin discrete data samples by their labels.
+    
+    Parameters
+    ----------
+    data : list
+        Data samples to be binned
 
-class BinnedDUD(DiscreteUnivariateDistribution):
+    Methods
+    ----------
+    sample
+    get_ci
+
+    Examples
+    --------
+    If you want to generate a binned distribution, you can do the following:
+
+    >>> bdud_rv = BinnedDUD(data=np.random.choice(['neg', 'pos'], size=10000, p=[0.7, 0.3]))
+
+    You can sample without replacement 1000 data points from the original data,
+
+    >>> bdud_rv.sample(n=1000)
+
+    You can also bootstrap (sample with replacement) 1000 data points from the original data,
+
+    >>> bcud_rv.sample(n=1000, replace=True)
+
+    You can obtain the 95 confidence intervals of any class
+
+    >>> bdud_rv.get_ci('pos')
+    """
     def __init__(self, data):
-        self.labels = list(set(data))
         self.data = np.array(data)
-        self.probs = np.array([np.mean(self.data == label) for label in
-                               self.labels])
+        self.labels = list(set(data))
+        self.probs = np.array([np.mean(self.data == label) for label in self.labels])
+        self.label_prob_dict = self.get_label_prob_dict()
 
-    def sample(self, n):
-        # sample without replacement n items from all data
-        return np.random.choice(self.data, size=n, replace=False)
+    # def sample(self, n, replace=False):
+    #     """Sample random variates of given size `n`.
+        
+    #     Parameters
+    #     ----------
+    #     n : int
+    #         Number of samples to generate
+    #     replace : bool, optional
+    #         Whether to sample with replacement or not
+            
+    #     Returns
+    #     -------
+    #     rvs : ndarray
+    #         Random variates of given `size`
+    #     """
+    #     return np.random.choice(self.data, size=n, replace=replace)
+    
+    def get_ci(self, label: str):
+        """95 confidence interval of a given label.
 
-    def get_ci(self, label):
-        # given a label class, return the confidence interval of this class
+        Parameters
+        ----------
+        label : str
+            Label to be evaluated
+
+        Returns
+        -------
+        ci : float
+            Confidence interval of the given label
+        """
         p_label = self.get_density(label)
-        return 1.96 * np.sqrt(p_label * (1 - p_label) / len(self.data))
+        num_item = sum(self.data == label)
+        return 1.96 * np.sqrt(p_label * (1 - p_label) / num_item)
 
-    def plot(self, ci=True, ax=None):
+
+class ContinuousUnivariateDistribution(UnivariateDistribution):
+    """A base class for continuous univariate distributions.
+    """
+
+    def plot(self, **kwds):
+        """Plot the probability density function of continuous univariate distribution class.
+        """
+        ax = kwds.pop('ax', None)
         if ax is None:
-            ax = plt.gca()
-        # plot a bar chart with confidence intervals of the distribution
-        if ci:
-            ax.bar(self.labels, self.probs, yerr=[self.get_ci(label) for
-                                                  label in self.labels])
-        else:
-            ax.bar(self.labels, self.probs)
-        ax.set_ylabel('Probability')
-        # plt.show()
+            ax = prepare_canvas()
 
+        prev_ymax = ax.get_ylim()[1]
 
-class ContinuousUnivariateDistribution(UnivariateDistribution, ABC):
-    def get_density(self):
-        pass
+        weight = kwds.pop('weight', 1)
+        bottom_axis = kwds.pop('bottom_axis', None)
+        if bottom_axis is None:
+            bottom_axis = np.zeros(len(self.x_axis))
 
+        top_axis = bottom_axis + weight * self.y_axis
 
-# class BetaCUD(ContinuousUnivariateDistribution):
-#     def __init__(self, a, b):
-#         self.dist = beta(a, b)
-#
-#     def get_density(self, score):
-#         return self.dist.pdf(score)
-#
-#     def generate_data(self, n):
-#         # generate a simulated dataset of size n
-#         return self.dist.rvs(n)
-#
-#     def plot(self):
-#         # plot a bar chart of the distribution
-#         x_axis = np.linspace(0, 1, 100)
-#         y_axis = [self.get_density(x) for x in x_axis]
-#         plt.plot(x_axis, y_axis)
-#         plt.xlabel('Score')
-#         plt.ylabel('Density')
-#         plt.show()
+        one_gradient_plot(ax, self.x_axis, top_axis, bottom_axis, **kwds)
+
+        ax.set_xlabel('score')
+        ax.set_ylabel('density')
+        ax.set_xlim([-0.02, 1.02])
+        ax.set_ylim([0, max((np.max(top_axis) * 1.1, prev_ymax))])
+
+        return_bottom = kwds.pop('return_bottom', False)
+        if return_bottom:
+            return top_axis
 
 
 class MixtureCUD(ContinuousUnivariateDistribution):
-    """A theoretical, parametric mixture continuous univariate distribution class.
+    """A class for parametric mixture continuous univariate distributions.
 
-    `MixtureCUD` is a base class to generate continuous data samples
+    `MixtureCUD` is a class to generate continuous data samples
     of a random variable from a collection of theoretical parametric
     sub-distributions with weights.
 
@@ -124,17 +311,16 @@ class MixtureCUD(ContinuousUnivariateDistribution):
     compoment are 2:7:1, you can do the following:
 
     >>> from scipy.stats import beta, uniform
-    >>> md_rv = MixtureCUD(components=[beta(8, 2), beta(2, 5), uniform(0, 1)],
-    ...                    weights=[2, 7, 1])
+    >>> mcud_rv = MixtureCUD(components=[beta(8, 2), beta(2, 5), uniform(0, 1)],
+    ...                      weights=[2, 7, 1])
 
     You can sample 10,000 data points from the mixture distribution,
 
-    >>> md_rv.generate_data(n=10000)
+    >>> mcud_rv.generate_data(n=10000)
 
     You can obtain the probability density at any x
 
-    >>> import numpy as np
-    >>> md_rv.get_density(np.linspace(0, 1, 101))
+    >>> mcud_rv.get_density(0.7)
 
     """
     def __init__(self, components, weights):
@@ -142,31 +328,38 @@ class MixtureCUD(ContinuousUnivariateDistribution):
         self.num_component = len(components)
         weight_sum = sum(weights)
         self.weights = [weight / weight_sum for weight in weights]
+        self.update_bin_axis(num_bin=1000)
 
-    def pdf(self, score):
+    def update_bin_axis(self, num_bin):
+        """Update the bin axis for plotting because we can generate infinite data from theoretical distributions.
+
+        Parameters
+        ----------
+        num_bin : int
+            Number of bins
+        """
+        bin_width = 1 / num_bin
+        bin_margin = bin_width / 2
+        self.x_axis = np.arange(bin_margin, 1, bin_width)
+        self.y_axis = np.array([self.get_density(x) for x in self.x_axis])
+        self.num_bin = len(self.x_axis)
+
+    def get_density(self, score):
         """Probability density at `score`.
 
         Parameters
         ----------
-        x : array_like
-            quantiles
+        score : float
+            Score at which the probability density is evaluated
 
         Returns
         -------
         pdf : ndarray
             Probability density evaluated at x
         """
-        return sum([weight * component.pdf(score)
+        return sum([weight * component.pdf(score) if hasattr(component, 'pdf') and callable(component.pdf) else weight * component.get_density(score)
                     for weight, component in
                     zip(self.weights, self.components)])
-
-    def get_density(self, scores):
-        """Probability density at `scores`.
-        """
-        if isinstance(scores, Iterable):
-            return [self.pdf(score) for score in scores]
-        else:
-            return self.pdf(scores)
 
     def generate_data(self, n):
         """Sample random variates of given size `n`.
@@ -190,137 +383,102 @@ class MixtureCUD(ContinuousUnivariateDistribution):
         return data_sample
     
     def plot(self, **kwds):
-        """Plot the probability density function for the mixture distribution.
+        """Plot the probability density function of mixture continuous univariate distribution class.
+        When plotting the theoretical distributions, we use a very large number of bins 
+        because we can calculate the density at any score.
+        
+        Parameters
+        ----------
+        num_bin : int, optional
+            Number of bins for plotting
+        """
+        num_bin = kwds.pop('num_bin', 1000)
+        self.update_bin_axis(num_bin=num_bin)
+        return super().plot(**kwds)
+
+
+class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
+    """A class for binned continuous univariate distributions.
+    
+    `BinnedCUD` is a class to bin continuous data samples by their values.
+    
+    Parameters
+    ----------
+    data : list
+        Data samples to be binned
+    
+    num_bin : int
+        Number of bins, this is required to model the empirical data distribution
+
+    Methods
+    ----------
+    sample
+    get_density
+
+    Examples
+    --------
+    If you want to generate a binned distribution, you can do the following:
+
+    >>> from scipy.stats import beta, uniform
+    >>> bcud_rv = BinnedCUD(data=beta(8, 2).rvs(size=10000))
+
+    You can sample without replacement 1000 data points from the original data,
+
+    >>> bcud_rv.sample(n=1000)
+
+    You can also bootstrap (sample with replacement) 1000 data points from the original data,
+
+    >>> bcud_rv.sample(n=1000, replace=True)
+    
+    You can obtain the probability density at any x
+
+    >>> bcud_rv.get_density(0.7)
+    """
+    def __init__(self, data=None, num_bin=0, x_axis=None, y_axis=None):
+        if data is not None:
+            self.data = np.array(data)
+            self.num_bin = num_bin
+            bin_width = 1 / num_bin
+            bin_margin = bin_width / 2
+            self.x_axis = np.arange(bin_margin, 1, bin_width)
+            bin_edges = np.linspace(0, 1, self.num_bin + 1)
+            self.y_axis = np.histogram(self.data, bins=bin_edges, density=True)[0]
+        else:
+            self.x_axis = x_axis
+            self.y_axis = y_axis
+
+    def get_density(self, score):
+        """Probability density at `score`.
 
         Parameters
         ----------
-        ax : AxesSubplot, optional
-            Axis to plot the pdf
-        color : str, optional
-            Main color for the plot
-        fig_name : str, optional
-            Filepath of the output figure
+        score : float
+            Score at which the probability density is evaluated
+
+        Returns
+        -------
+        pdf : ndarray
+            Probability density evaluated at `score`
         """
-        ax = kwds.pop('ax', None)
-        if ax is None:
-            ax = prepare_canvas()
-        img_name = kwds.pop('img_name', None)
-        num_bin = kwds.pop('num_bin', 500)
-        weight = kwds.pop('weight', 1)
-        return_bottom = kwds.pop('return_bottom', False)
-
-        x_axis = np.linspace(0, 1, num_bin)
-        y_axis = np.array([weight * self.get_density(x) for x in x_axis])
-
-        one_gradient_plot(ax, x_axis, y_axis, **kwds)
-
-        ax.set_xlabel('score')
-        ax.set_ylabel('density')
-        ax.set_xlim([-0.02, 1.02])
-        ax.set_ylim(ymin=0)
-        save_to_img(img_name)
-
-        if return_bottom:
-            return y_axis
-
-    # def plot(self, ax=None, bottom=None, return_bottom=False, weight=1, num_bin=100, density=False):
-    #     if ax is None:
-    #         ax = plt.gca()
-
-    #     # plot a line chart of the distribution
-    #     x_axis = np.linspace(0, 1, num_bin)
-    #     if bottom:
-    #         y_axis = [self.get_density(x) * weight + b_y for x, b_y in zip(x_axis, bottom)]
-    #     else:
-    #         y_axis = [self.get_density(x) * weight for x in x_axis]
-    #     if density:
-    #         y_axis = np.array(y_axis) / sum(y_axis)
-    #     ax.plot(x_axis, y_axis)
-    #     ax.set_xlabel('Score')
-    #     ax.set_ylabel('Density')
-    #     # plt.show()
-    #     if return_bottom:
-    #         return y_axis
-
-
-class BinnedCUD(ContinuousUnivariateDistribution):
-    def __init__(self, data, bins=10):
-        self.data = np.array(data)
-        self.bins = bins
-    
-    def get_length(self):
-        return self.bins
-
-    def get_density(self, score):
-        hist, _ = np.histogram(self.data, bins=self.bins, density=True)
-        return hist[np.searchsorted(np.linspace(0, 1, self.bins), score) - 1]
-
-    def pdf(self, score):
-        hist, _ = np.histogram(self.data, bins=self.bins, density=True)
-        return hist[np.searchsorted(np.linspace(0, 1, self.bins), score) - 1]
-
-    def pdfs(self):
-        hist, _ = np.histogram(self.data, bins=self.bins, density=True)
-        return hist
-
-    def sample(self, n):
-        # sample without replacement n items from all data
-        return np.random.choice(self.data, size=n, replace=False)
-
-    def plot(self, **kwds):
-        # plot a line chart of the distribution
-        # if 0 < weight <= 1:
-        #     new_data = list(self.data) * int(100 * weight)
-        # else:
-        ax = kwds.pop('ax', None)
-        if ax is None:
-            ax = prepare_canvas()
-        img_name = kwds.pop('img_name', None)
-        num_bin = kwds.pop('num_bin', 500)
-        weight = kwds.pop('weight', 1)
-        return_bottom = kwds.pop('return_bottom', False)
-        density = kwds.pop('density', False)
-        bottom = kwds.pop('bottom', None)
-
-        new_data = self.data
-        if bottom is not None:
-            bottom, _, _ = ax.hist(new_data, bins=num_bin, histtype='step',
-                                    bottom=bottom, density=density)
-        else:
-            bottom, _, _ = ax.hist(new_data, bins=num_bin, histtype='step', density=density)
-        ax.set_xlabel('score')
-        ax.set_ylabel('density')
-        if return_bottom:
-            return bottom
-
-
-class NonParametricCUD(ContinuousUnivariateDistribution):
-    def __init__(self, x_axis, y_axis):
-        self.x_axis = np.array(x_axis)
-        self.y_axis = np.array(y_axis)
-
-    def get_density(self, score):
-        return score[np.searchsorted(self.x_axis, score) - 1]
-
-    def sample(self, n):
-        pass  # TODO
-
-    def plot(self, **kwds):
-        ax = kwds.pop('ax', None)
-        if ax is None:
-            ax = prepare_canvas()
-        return_bottom = kwds.pop('return_bottom', False)
-
-        one_gradient_plot(ax, self.x_axis, self.y_axis, **kwds)
-
-        ax.set_xlabel('score')
-        ax.set_ylabel('density')
-
-        if return_bottom:
-            return self.y_axis
+        return self.y_axis[np.searchsorted(self.x_axis, score)]
 
 
 class JointDistribution:
+    """A base class for joint distributions.
+    
+    `JointDistribution` is a class to model joint distribtions.
+    
+    Parameters
+    ----------
+    labels : list
+        Labels of the joint distribution
+
+    Methods
+    ----------
+    sample
+    get_density
+    plot_five_distributions
+    """
     def __init__(self, labels):
         self.labels = labels
         self.label_distribution = None
@@ -328,44 +486,38 @@ class JointDistribution:
         self.classifier_score_distribution = None
         self.calibration_curve = None
 
-    def sample(self, n):
+    def sample(self):
         pass
 
-    def get_density(self, score, label):
+    def get_density(self):
         pass
 
-    def plot_five_distributions(self, num_bin=500):
+    def plot_five_distributions(self, num_bin=1000):
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
-        for label in self.labels[::-1]:
-            self.class_conditional_densities[label].plot(ax=axes[0], color=eval(f'ColorPalette.{label}_color'),
-                                                         num_bin=num_bin, density=True)
+        for label in self.labels:
+            self.class_conditional_densities[label].plot(ax=axes[0], num_bin=num_bin,
+                                                         color=ColorPalette[label])
         axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1])
         axes[1].set_title('Label Density')
 
-        if isinstance(self, IntrinsicJointDistribution):
-            prev_bottom = None
-            for label in self.labels:
-                weight = self.label_distribution.get_density(label)
-                prev_bottom = self.class_conditional_densities[label].plot(
-                    ax=axes[2], num_bin=num_bin, color=eval(f'ColorPalette.{label}_color'), 
-                    bottom_axis=prev_bottom, return_bottom=True, weight=weight)
-        else:
-            x_axis = np.linspace(0, 1, num_bin)
-            curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
-                        np.array([self.classifier_score_distribution.get_density(x)
-                                for x in x_axis])
-            self.classifier_score_distribution.plot(ax=axes[2], num_bin=num_bin, color=ColorPalette.neg_color, density=True)
-            self.class_conditional_densities['pos'].plot(ax=axes[2], weight=self.label_distribution.get_density('pos'), num_bin=num_bin, color=ColorPalette.pos_color, density=True)
+        prev_bottom_axis = None
+        for label in self.labels:
+            weight = self.label_distribution.get_density(label)
+            prev_bottom_axis = self.class_conditional_densities[label].plot(
+                ax=axes[2], num_bin=num_bin, color=ColorPalette[label], 
+                weight=weight, bottom_axis=prev_bottom_axis, return_bottom=True)
         axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3], num_bin=num_bin)
         axes[3].set_title('Classifier Score Density')
 
-        self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
+        if hasattr(self, 'update_calibration_curve') and callable(self.update_calibration_curve):
+            self.update_calibration_curve(num_bin=num_bin)
+        self.calibration_curve.plot(ax=axes[4])
         axes[4].set_title('Calibration Curve')
 
         for ax in axes:
@@ -397,15 +549,15 @@ class IntrinsicJointDistribution(JointDistribution):
 
     def calculate_calibration_curve(self, num_bin=1000):
         # calculate the calibration curve
-        x_axis = np.linspace(0, 1, num_bin)
-        y_axis = [self.class_conditional_densities['pos'].get_density(x) *
-                  self.label_distribution.get_density('pos') /
+        x_axis = np.linspace(0, 1, num_bin + 1)
+        pos_weight = self.label_distribution.get_density('pos')
+        y_axis = [pos_weight * self.class_conditional_densities['pos'].get_density(x) /
                   self.classifier_score_distribution.get_density(x)
                   for x in x_axis]
-        ret = NonParametricCalibrationCurve()
-        ret.set_x_axis(x_axis)
-        ret.set_y_axis(y_axis)
-        return ret
+        return BinnedCalibrationCurve(x_axis, y_axis)
+    
+    def update_calibration_curve(self, num_bin):
+        self.calibration_curve = self.calculate_calibration_curve(num_bin=num_bin)
 
 
 class ExtrinsicJointDistribution(JointDistribution):
@@ -415,25 +567,25 @@ class ExtrinsicJointDistribution(JointDistribution):
         super().__init__(labels)
         self.classifier_score_distribution = classifier_score_distribution
         self.calibration_curve = calibration_curve
-        self.label_distribution = self.calculate_label_distribution()
-        self.class_conditional_densities = self.calculate_class_conditional_densities()
 
-    def calculate_label_distribution(self, num_bin=1000):
+        num_bin = classifier_score_distribution.num_bin
+        self.label_distribution = self.calculate_label_distribution(num_bin)
+        self.class_conditional_densities = self.calculate_class_conditional_densities(num_bin)
+
+    def calculate_label_distribution(self, num_bin):
         x_axis = np.linspace(0, 1, num_bin)
-        curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
+        area_pos = sum(self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
-                            for x in x_axis])
-        curve_neg = (1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
+                            for x in x_axis]))
+        area_neg = sum((1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
                     np.array([self.classifier_score_distribution.get_density(x)
-                            for x in x_axis])
-        area_pos = sum(curve_pos)
-        area_neg = sum(curve_neg)
+                            for x in x_axis]))
         total_area = area_pos + area_neg
         area_pos /= total_area
         area_neg /= total_area
         return MultinomialDUD(['neg', 'pos'], np.array([area_neg, area_pos]))
 
-    def calculate_class_conditional_densities(self, num_bin=1000):
+    def calculate_class_conditional_densities(self, num_bin):
         x_axis = np.linspace(0, 1, num_bin)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
@@ -443,5 +595,5 @@ class ExtrinsicJointDistribution(JointDistribution):
                             for x in x_axis])
         curve_pos = np.array(curve_pos) / sum(curve_pos) * num_bin
         curve_neg = np.array(curve_neg) / sum(curve_neg) * num_bin
-        return {'pos': NonParametricCUD(x_axis, curve_pos),
-                'neg': NonParametricCUD(x_axis, curve_neg)}
+        return {'pos': BinnedCUD(x_axis=x_axis, y_axis=curve_pos),
+                'neg': BinnedCUD(x_axis=x_axis, y_axis=curve_neg)}

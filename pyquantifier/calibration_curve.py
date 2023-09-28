@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import numpy as np
 from matplotlib import pyplot as plt
 from collections.abc import Iterable
@@ -11,32 +12,37 @@ class CalibrationCurve:
     """
     A calibration curve.
     """
-
     def __init__(self):
         self.x_axis = None
         self.y_axis = None
 
-    def get_calibrated_prob(self, cxs):
+    @abstractmethod
+    def get_calibrated_prob(self):
         pass
 
-    def plot(self, show_diagonal=False, fig_name=False, ax=None):
+    def plot(self, **kwds):
+        ax = kwds.pop('ax', None)
         if ax is None:
             ax = prepare_canvas()
 
-        bin_width = 1 / len(self.x_axis)
-        bin_margin = bin_width / 2
-        for x, y in zip(self.x_axis, self.y_axis):
-            left_point = x - bin_margin
-            right_point = x + bin_margin
+        show_diagonal = kwds.pop('show_diagonal', False)
 
-            ax.fill_between([left_point, right_point],
+        num_bin = len(self.x_axis)
+        bin_width = 1 / num_bin
+        bin_margin = bin_width / 2
+
+        for x, y in zip(self.x_axis, self.y_axis):
+            left_coord = x - bin_margin
+            right_coord = x + bin_margin
+
+            ax.fill_between([left_coord, right_coord],
                             [0, 0],
                             [y, y],
-                            facecolor=ColorPalette.CC2[1], alpha=x, lw=0)
-            ax.fill_between([left_point, right_point],
+                            facecolor=ColorPalette['pos'], alpha=x, lw=0)
+            ax.fill_between([left_coord, right_coord],
                             [y, y],
                             [1, 1],
-                            facecolor=ColorPalette.CC2[0], alpha=x, lw=0)
+                            facecolor=ColorPalette['neg'], alpha=x, lw=0)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 
@@ -48,16 +54,20 @@ class CalibrationCurve:
         ax.set_yticks([0, 0.5, 1])
         ax.set_ylim(ymin=0)
 
-        if fig_name:
-            plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
 
+class BinnedCalibrationCurve(CalibrationCurve):
+    def __init__(self, x_axis, y_axis):
+        self.x_axis = x_axis
+        self.y_axis = y_axis
 
-class NonParametricCalibrationCurve(CalibrationCurve):
     def set_x_axis(self, x_axis):
         self.x_axis = x_axis
 
     def set_y_axis(self, y_axis):
         self.y_axis = y_axis
+
+    def get_calibrated_prob(self, cxs):
+        return np.array([self.y_axis[np.searchsorted(self.x_axis, score)] for score in cxs])
 
 
 class PlattScaling(CalibrationCurve):
