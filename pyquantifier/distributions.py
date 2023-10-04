@@ -461,6 +461,9 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
             Probability density evaluated at `score`
         """
         return self.y_axis[np.searchsorted(self.x_axis, score)]
+    
+    def get_length(self):
+        return len(self.x_axis)
 
 
 class JointDistribution:

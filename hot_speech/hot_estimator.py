@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 from collections import Counter
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from pyquantifier.data import Dataset
 
@@ -55,6 +54,7 @@ def preprocess(text_string, is_reddit):
 # generate distributions of the annotated dataset
 def generate_annotated_dataset_dists():
     uid_list = []
+    platform_list = []
     pos_list = []
     neg_list = []
     hate_label_list = []
@@ -67,6 +67,7 @@ def generate_annotated_dataset_dists():
     with open('hot_speech/labeled_hot_data_202108.json', 'r') as fin:
         for line in fin:
             comment_json = json.loads(line.rstrip())
+            platform = comment_json['platform']
             toxicity_score = comment_json['toxicity']
             hate_label = label_map[get_majority_vote([x[0] for x in comment_json['composite_hate']])]
             offensive_label = label_map[get_majority_vote([x[0] for x in comment_json['composite_offensive']])]
@@ -76,61 +77,97 @@ def generate_annotated_dataset_dists():
 
             uid += 1
             uid_list.append(uid)
+            platform_list.append(platform)
             pos_list.append(toxicity_score)
             neg_list.append(1-toxicity_score)
             hate_label_list.append(hate_label)
             offensive_label_list.append(offensive_label)
             toxic_label_list.append(toxic_label)
             hot_label_list.append(hot_label)
+    
+    original_reddit_toxicity_list = []
+    original_twitter_toxicity_list = []
+    original_youtube_toxicity_list = []
+    with open('hot_speech/202108_base_hot_comments.json', 'r') as fin:
+        for line in fin:
+            article_json = json.loads(line.rstrip())
+            reported_rd_comments = article_json['reported_rd_comments']
+            reported_tw_replies = article_json['reported_tw_replies']
+            reported_yt_comments = article_json['reported_yt_comments']
+            original_reddit_toxicity_list.extend([x['toxicity_0216'] for x in reported_rd_comments if isinstance(x['toxicity_0216'], float)])
+            original_twitter_toxicity_list.extend([x['toxicity_0216'] for x in reported_tw_replies if isinstance(x['toxicity_0216'], float)])
+            original_youtube_toxicity_list.extend([x['toxicity_0216'] for x in reported_yt_comments if isinstance(x['toxicity_0216'], float)])    
 
     all_labels = ['pos', 'neg']
     cached_dists = {}
     for metric in ['hate', 'offensive', 'toxic', 'hot']:
-        df = pd.DataFrame.from_dict({'uid': uid_list, 'pos': pos_list, 'neg': neg_list, 'gt_label': eval(f'{metric}_label_list')})
-        # use the pyquantifier package to make estimations
-        dataset = Dataset(df=df, labels=all_labels)
-        calibration_curve = dataset.generate_calibration_curve(method='platt scaling')
-        class_conditional_densities = dataset.infer_class_conditional_densities(num_bin=10)
+        df = pd.DataFrame.from_dict({'uid': uid_list, 'platform': platform_list, 'pos': pos_list, 'neg': neg_list, 'gt_label': eval(f'{metric}_label_list')})
 
-        cached_dists[f'{metric}_calibration_curve'] = calibration_curve
-        cached_dists[f'{metric}_class_conditional_densities'] = class_conditional_densities
+        for platform in ['reddit', 'twitter', 'youtube']:
+            # use the pyquantifier package to make estimations
+            platform_df = df[df.platform == platform]
+
+            # compute the selection weights
+            original_toxicity_list = eval(f'original_{platform}_toxicity_list')
+            bins = np.linspace(0, 1, 11)
+            selection_weights = np.histogram(platform_df['pos'].tolist(), bins=bins)[0] / np.histogram(original_toxicity_list, bins=bins)[0]
+            print(selection_weights)
+
+            dataset = Dataset(df=platform_df, labels=all_labels)
+            calibration_curve = dataset.generate_calibration_curve(method='platt scaling')
+            class_conditional_densities = dataset.infer_class_conditional_densities(num_bin=10, selection_weights=selection_weights)
+
+            cached_dists[f'{platform}_{metric}_calibration_curve'] = calibration_curve
+            cached_dists[f'{platform}_{metric}_class_conditional_densities'] = class_conditional_densities
         
     pickle.dump(cached_dists, open('hot_speech/hot_cached_dists.pkl', 'wb'))
 
 
-def hot_prevalence_estimate(cx_list, frequency=False, assumption='extrinsic'):
+
+def single_hot_prevalence_estimate(cx_list, platform, metric, cached_dists, assumption='extrinsic'):
     # build a dataset object from the list
     num_item = len(cx_list)
     if num_item == 0:
-        return [0, 0, 0, 0, 0]
+        return 0
 
     df = pd.DataFrame.from_dict({'uid': list(range(num_item)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
     # use the pyquantifier package to make estimations
     dataset = Dataset(df=df, labels=['pos', 'neg'])
 
+    if assumption == 'extrinsic':
+        calibration_curve = cached_dists[f'{platform}_{metric}_calibration_curve']
+        est_prevalence = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
+        # print(f'extrinsic estimate: {est_prevalence:.4f} on the a simulated data')
+    else:
+        class_conditional_densities = cached_dists[f'{platform}_{metric}_class_conditional_densities']
+        est_prevalence = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
+        # print(f'instrinsic estimate: {est_prevalence:.4f} on the a simulated data')
+    return est_prevalence * num_item
+
+
+def hot_prevalence_estimate(cx_list, platform, metric, assumption='extrinsic', bootstrap=False):
+    # build a dataset object from the list
+    num_item = len(cx_list)
+    if num_item == 0:
+        return [0, 0, 0]
+    
     # load the calibration curve of the hot speech dataset
     cached_dists_filepath = 'hot_speech/hot_cached_dists.pkl'
     if not os.path.exists(cached_dists_filepath):
         generate_annotated_dataset_dists()
     cached_dists = pickle.load(open(cached_dists_filepath, 'rb'))
-
-    ret_list = [num_item]
-    for metric in ['hate', 'offensive', 'toxic', 'hot']:
-        if assumption == 'extrinsic':
-            calibration_curve = cached_dists[f'{metric}_calibration_curve']
-            est_prevalence = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
-            # print(f'extrinsic estimate: {est_prevalence:.4f} on the a simulated data')
-        else:
-            class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
-            est_prevalence = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
-            # print(f'instrinsic estimate: {est_prevalence:.4f} on the a simulated data')
-
-        if frequency:
-            ret_list.append(est_prevalence * num_item)
-        else:
-            ret_list.append(est_prevalence)
-
-    return ret_list
+    
+    if bootstrap:
+        ret_list = []
+        num_bootstrap = 100
+        for _ in range(num_bootstrap):
+            bootstrapped_cx_list = np.random.choice(cx_list, size=num_item, replace=True)
+            bootstrapped_estimates = single_hot_prevalence_estimate(bootstrapped_cx_list, platform, metric, cached_dists, assumption)
+            ret_list.append(bootstrapped_estimates)
+        return [np.mean(ret_list), np.percentile(ret_list, 2.5), np.percentile(ret_list, 97.5)]
+    else:
+        ret_est = single_hot_prevalence_estimate(cx_list, platform, metric, cached_dists, assumption)
+        return [ret_est, ret_est, ret_est]
 
 
 # load data
@@ -191,26 +228,36 @@ def main():
     for platform in platform_list:
         data_dict[f'{platform}_num_comment_list'] = []
         data_dict[f'{platform}_hate_list'] = []
+        data_dict[f'{platform}_hate_ub_list'] = []
+        data_dict[f'{platform}_hate_lb_list'] = []
         data_dict[f'{platform}_offensive_list'] = []
+        data_dict[f'{platform}_offensive_ub_list'] = []
+        data_dict[f'{platform}_offensive_lb_list'] = []
         data_dict[f'{platform}_toxic_list'] = []
+        data_dict[f'{platform}_toxic_ub_list'] = []
+        data_dict[f'{platform}_toxic_lb_list'] = []
         data_dict[f'{platform}_hot_list'] = []
+        data_dict[f'{platform}_hot_ub_list'] = []
+        data_dict[f'{platform}_hot_lb_list'] = []
 
     for day in date_list:
         for platform in platform_list:
             platform_cx_list = comment_2022_dict[day][f'{platform}_toxic_list']
-            num_item, hate, offensive, toxic, hot = hot_prevalence_estimate(platform_cx_list, frequency=True, assumption='extrinsic')
+            num_item = len(platform_cx_list)
             data_dict[f'{platform}_num_comment_list'].append(num_item)
-            data_dict[f'{platform}_hate_list'].append(hate)
-            data_dict[f'{platform}_offensive_list'].append(offensive)
-            data_dict[f'{platform}_toxic_list'].append(toxic)
-            data_dict[f'{platform}_hot_list'].append(hot)
-
+            for metric in ['hot', 'hate', 'offensive', 'toxic']:
+                est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, assumption='extrinsic', bootstrap=True)
+                data_dict[f'{platform}_{metric}_list'].append(est_mean)
+                data_dict[f'{platform}_{metric}_ub_list'].append(est_ub)
+                data_dict[f'{platform}_{metric}_lb_list'].append(est_lb)
+        print(f'finish processing {day}')
+    
     data_df = pd.DataFrame(data_dict)
     data_df.index = data_df.date
     data_df.index = pd.to_datetime(data_df.index)
     data_df.drop(columns=['date'], inplace=True)
 
-    data_df.to_csv('hot_speech/hot_prevalence_estimation_2022.csv')
+    data_df.to_csv('hot_speech/extrinsic_hot_prevalence_estimation_2022.csv')
 
 
 if __name__ == '__main__':

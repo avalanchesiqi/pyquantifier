@@ -70,8 +70,8 @@ class Dataset:
         self.classifier_score_distribution = None
         self.calibration_curve = None
     
-    def update_dataset_model(self, num_bin):
-        self.class_conditional_densities = self.infer_class_conditional_densities(num_bin)
+    def update_dataset_model(self, num_bin, selection_weights=None):
+        self.class_conditional_densities = self.infer_class_conditional_densities(num_bin, selection_weights)
         self.label_distribution = self.infer_label_distribution()
         self.classifier_score_distribution = self.infer_classifier_score_distribution(num_bin)
         self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
@@ -124,13 +124,13 @@ class Dataset:
         return Dataset(df=self.df.sample(n, replace=replace), labels=self.labels)
     
     @staticmethod
-    def _get_neyman_allocation(bin_hist, total_n):
+    def _get_neyman_allocation(bin_dict, total_n):
         """Get the neyman allocation for each bin.
 
         Parameters
         ----------
-        bin_hist : list
-            A list of number of items in each bin
+        bin_dict : dict
+            A dict of number of items for each bin
         total_n : int
             Total number of items to sample
         
@@ -139,8 +139,9 @@ class Dataset:
         dict
             A dictionary of bin index and number of items to sample from each bin
         """
-        N = np.array(bin_hist)
-        step = 1 / len(bin_hist)
+        n = len(bin_dict)
+        N = np.array([bin_dict[i] for i in range(n)])
+        step = 1 / n
         K = np.arange(step/2, 1, step)
         S = np.sqrt(K * (1 - K))
         return {i: round(n_in_bin) for i, n_in_bin in enumerate(total_n * (N * S) / sum(N * S))}
@@ -182,25 +183,27 @@ class Dataset:
         """
 
         if strategy == 'random':
-            return self.sample(n)
+            return self.sample(n), None
         elif strategy in ['uniform', 'neyman']:
             df = self.df.copy()
             # create a new column based on the pos column
             df['bin'] = df.apply(lambda row: get_bin_idx(row['pos'], size=bins), axis=1)
-            
+            original_bin_dict = df['bin'].value_counts().to_dict()
+
             if strategy == 'uniform':
                 n_per_bin = n // bins
-                bin_dict = {i: n_per_bin for i in range(bins)}
+                to_sample_bin_dict = {i: n_per_bin for i in range(bins)}
             else:  # neyman
-                bin_hist = df['bin'].value_counts(sort=True, ascending=True).tolist()
-                bin_dict = self._get_neyman_allocation(bin_hist, n)
+                to_sample_bin_dict = self._get_neyman_allocation(original_bin_dict, n)
 
             # sample items from each bin
             df = df.groupby(by='bin', sort=True, group_keys=True)\
-                .apply(self._sample_items_from_bin, bin_dict=bin_dict)
+                .apply(self._sample_items_from_bin, bin_dict=to_sample_bin_dict)
             # drop the bin column
             df = df.drop(columns=['bin'])
-            return Dataset(df=df, labels=self.labels)
+
+            selection_weights = [to_sample_bin_dict[i] / original_bin_dict[i] for i in range(bins)]
+            return Dataset(df=df, labels=self.labels), selection_weights
         else:
             raise ValueError('unsupported sampling strategy, '
                             'options are random, uniform, or neyman.')
@@ -243,7 +246,7 @@ class Dataset:
         y_axis, dummy = np.histogram(self.df['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
         return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
-    def infer_class_conditional_density(self, label, num_bin):
+    def infer_class_conditional_density(self, label, num_bin, selection_weights=None):
         """Infer the class conditional density for a given label class.
 
         Parameters
@@ -260,9 +263,14 @@ class Dataset:
         """
         x_axis = np.arange(0.5 / num_bin, 1, 1 / num_bin)
         y_axis, dummy = np.histogram(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        if selection_weights is not None:
+            assert num_bin == len(selection_weights)
+            selection_weights = np.array(selection_weights)
+            y_axis /= selection_weights
+            y_axis *= num_bin / y_axis.sum()
         return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
-    def infer_class_conditional_densities(self, num_bin):
+    def infer_class_conditional_densities(self, num_bin, selection_weights):
         """Infer the class conditional densities for all label classes.
 
         Returns
@@ -270,7 +278,7 @@ class Dataset:
         dict
             A dictionary of BinnedDUD objects
         """
-        return {label: self.infer_class_conditional_density(label, num_bin)
+        return {label: self.infer_class_conditional_density(label, num_bin, selection_weights)
                 for label in self.labels}
 
     def generate_calibration_curve(self, method='platt scaling', num_bin=10):
@@ -322,7 +330,7 @@ class Dataset:
     #                                       self.infer_classifier_score_distribution(num_bin=10),
     #                                       self.generate_calibration_curve('platt scaling'))
 
-    def profile_dataset(self, num_bin=10):
+    def profile_dataset(self, num_bin=10, selection_weights=None):
         """Plot the five distributions of the dataset.
 
         Parameters
@@ -333,7 +341,7 @@ class Dataset:
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
-        self.update_dataset_model(num_bin=num_bin)
+        self.update_dataset_model(num_bin=num_bin, selection_weights=selection_weights)
 
         for label in self.labels:
             self.class_conditional_densities[label].plot(ax=axes[0], color=ColorPalette[label])

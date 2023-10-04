@@ -24,29 +24,29 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
     def set_negativity_density(self, negativity_density):
         self.negativity_density = negativity_density
 
-    def fit(self, sample_df, base_cx, num_bin=10):
-        x_axis = np.linspace(0, 1, num_bin + 1)
-        base_cx_hist, _ = np.histogram(base_cx, bins=x_axis, density=True)
-        sample_cx_hist, _ = np.histogram(sample_df['C(X)'].values, bins=x_axis, density=True)
+    # def fit(self, sample_df, base_cx, num_bin=10):
+    #     x_axis = np.linspace(0, 1, num_bin + 1)
+    #     base_cx_hist, _ = np.histogram(base_cx, bins=x_axis, density=True)
+    #     sample_cx_hist, _ = np.histogram(sample_df['C(X)'].values, bins=x_axis, density=True)
 
-        weight = base_cx_hist / sample_cx_hist
+    #     weight = base_cx_hist / sample_cx_hist
 
-        pos_cx = sample_df[sample_df['GT'] == True]['C(X)'].values
-        neg_cx = sample_df[sample_df['GT'] == False]['C(X)'].values
+    #     pos_cx = sample_df[sample_df['GT'] == True]['C(X)'].values
+    #     neg_cx = sample_df[sample_df['GT'] == False]['C(X)'].values
 
-        pos_hist_freq, _ = np.histogram(pos_cx, bins=x_axis, density=True)
-        neg_hist_freq, _ = np.histogram(neg_cx, bins=x_axis, density=True)
+    #     pos_hist_freq, _ = np.histogram(pos_cx, bins=x_axis, density=True)
+    #     neg_hist_freq, _ = np.histogram(neg_cx, bins=x_axis, density=True)
 
-        pos_hist_freq *= weight
-        pos_total = np.sum(pos_hist_freq)
-        pos_hist_freq /= pos_total
+    #     pos_hist_freq *= weight
+    #     pos_total = np.sum(pos_hist_freq)
+    #     pos_hist_freq /= pos_total
 
-        neg_hist_freq *= weight
-        neg_total = np.sum(neg_hist_freq)
-        neg_hist_freq /= neg_total
+    #     neg_hist_freq *= weight
+    #     neg_total = np.sum(neg_hist_freq)
+    #     neg_hist_freq /= neg_total
 
-        self.positivity_density = pos_hist_freq
-        self.negativity_density = neg_hist_freq
+    #     self.positivity_density = pos_hist_freq
+    #     self.negativity_density = neg_hist_freq
 
     def hellinger(self, p, q):
         return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
@@ -59,8 +59,10 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         min_dist = 10000
         best_p_p = 0
 
-        for p_p in np.linspace(0, 1, 101):
-            dist = self.hellinger(cx_hist, self.positivity_density.pdfs() * p_p + self.negativity_density.pdfs() * (1 - p_p))
+        for p_p in x_axis:
+            dist = self.hellinger(cx_hist, 
+                                  np.array([self.positivity_density.get_density(x) for x in np.arange(0.05, 1, 0.1)]) * p_p 
+                                  + np.array([self.negativity_density.get_density(x) for x in np.arange(0.05, 1, 0.1)]) * (1 - p_p))
             if dist < min_dist:
                 min_dist = dist
                 best_p_p = p_p
