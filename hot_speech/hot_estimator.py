@@ -123,7 +123,6 @@ def generate_annotated_dataset_dists():
     pickle.dump(cached_dists, open('hot_speech/hot_cached_dists.pkl', 'wb'))
 
 
-
 def single_hot_prevalence_estimate(cx_list, platform, metric, cached_dists, assumption='extrinsic'):
     # build a dataset object from the list
     num_item = len(cx_list)
@@ -140,8 +139,8 @@ def single_hot_prevalence_estimate(cx_list, platform, metric, cached_dists, assu
         # print(f'extrinsic estimate: {est_prevalence:.4f} on the a simulated data')
     else:
         class_conditional_densities = cached_dists[f'{platform}_{metric}_class_conditional_densities']
-        est_prevalence = dataset.instrinsic_estimate(class_conditional_densities=class_conditional_densities)
-        # print(f'instrinsic estimate: {est_prevalence:.4f} on the a simulated data')
+        est_prevalence = dataset.intrinsic_estimate(class_conditional_densities=class_conditional_densities)
+        # print(f'intrinsic estimate: {est_prevalence:.4f} on the a simulated data')
     return est_prevalence * num_item
 
 
@@ -171,20 +170,20 @@ def hot_prevalence_estimate(cx_list, platform, metric, assumption='extrinsic', b
 
 
 # load data
-def load_2022_comments(filepath):
+def load_extrapolation_comments(filepath, start_date, end_date, toxicity_field='toxicity'):
     platform2field_dict = {'reddit': 'selected_reddit_comments',
                            'twitter': 'selected_twitter_replies',
                            'youtube': 'selected_youtube_comments'}
     platform_list = ['reddit', 'twitter', 'youtube']
 
-    start_date = datetime(2022, 1, 1)
-    end_date = datetime(2022, 12, 31)
+    start_date = str2obj(start_date, '%Y-%m-%d')
+    end_date = str2obj(end_date, '%Y-%m-%d')
     time_duration = (end_date - start_date).days + 1
-    comment_2022_dict = {}
+    extrapolation_comment_dict = {}
     
     for time_lag in range(time_duration):
         target_date = obj2str(start_date + timedelta(days=time_lag), '%Y-%m-%d')
-        comment_2022_dict[target_date] = {
+        extrapolation_comment_dict[target_date] = {
             'reddit_toxic_list': [],
             'twitter_toxic_list': [],
             'youtube_toxic_list': [],
@@ -204,26 +203,28 @@ def load_2022_comments(filepath):
                     processed_text = preprocess(text, is_reddit)
 
                     if processed_text:
-                        toxicity_score = comment['toxicity_0319']
+                        toxicity_score = comment[toxicity_field]
                         if isinstance(toxicity_score, float):
-                            comment_2022_dict[url_published_at][f'{platform}_toxic_list'].append(toxicity_score)
+                            extrapolation_comment_dict[url_published_at][f'{platform}_toxic_list'].append(toxicity_score)
 
-    return comment_2022_dict
+    return extrapolation_comment_dict
 
 
 def main():
     # ----------------- #
     # load every day data
-    cached_comment_2022_dict_filepath = 'hot_speech/hot_comment_2022_dict.pkl'
-    if not os.path.exists(cached_comment_2022_dict_filepath):
-        comment_2022_dict = load_2022_comments('hot_speech/2022_classified_hot_comments.json')
-        pickle.dump(comment_2022_dict, open(cached_comment_2022_dict_filepath, 'wb'))
+    cached_extrapolation_comment_dict_filepath = 'hot_speech/hot_extrapolation_comment_dict.pkl'
+    if not os.path.exists(cached_extrapolation_comment_dict_filepath):
+        comment_2022_dict = load_extrapolation_comments('hot_speech/2022_classified_hot_comments.json', start_date='2022-01-01', end_date='2022-12-31',  toxicity_field='toxicity_0319')
+        comment_2023_dict = load_extrapolation_comments('hot_speech/2023_classified_hot_comments.json', start_date='2023-01-01', end_date='2023-06-19',  toxicity_field='toxicity')
+        extrapolation_comment_dict = {**comment_2022_dict, **comment_2023_dict}
+        pickle.dump(extrapolation_comment_dict, open(cached_extrapolation_comment_dict_filepath, 'wb'))
     else:
-        comment_2022_dict = pickle.load(open(cached_comment_2022_dict_filepath, 'rb'))
+        extrapolation_comment_dict = pickle.load(open(cached_extrapolation_comment_dict_filepath, 'rb'))
     # ----------------- #
 
     platform_list = ['reddit', 'twitter', 'youtube']
-    date_list = sorted(comment_2022_dict.keys())
+    date_list = sorted(extrapolation_comment_dict.keys())
     data_dict = {'date': date_list}
     for platform in platform_list:
         data_dict[f'{platform}_num_comment_list'] = []
@@ -242,11 +243,11 @@ def main():
 
     for day in date_list:
         for platform in platform_list:
-            platform_cx_list = comment_2022_dict[day][f'{platform}_toxic_list']
+            platform_cx_list = extrapolation_comment_dict[day][f'{platform}_toxic_list']
             num_item = len(platform_cx_list)
             data_dict[f'{platform}_num_comment_list'].append(num_item)
             for metric in ['hot', 'hate', 'offensive', 'toxic']:
-                est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, assumption='extrinsic', bootstrap=True)
+                est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, assumption='intrinsic', bootstrap=True)
                 data_dict[f'{platform}_{metric}_list'].append(est_mean)
                 data_dict[f'{platform}_{metric}_ub_list'].append(est_ub)
                 data_dict[f'{platform}_{metric}_lb_list'].append(est_lb)
@@ -257,7 +258,7 @@ def main():
     data_df.index = pd.to_datetime(data_df.index)
     data_df.drop(columns=['date'], inplace=True)
 
-    data_df.to_csv('hot_speech/extrinsic_hot_prevalence_estimation_2022.csv')
+    data_df.to_csv('hot_speech/intrinsic_hot_prevalence_estimation_2022.csv')
 
 
 if __name__ == '__main__':

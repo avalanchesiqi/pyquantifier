@@ -371,7 +371,7 @@ class Dataset:
         
         plt.tight_layout()
 
-    def instrinsic_estimate(self, class_conditional_densities: dict, method='mixture model'):
+    def intrinsic_estimate(self, class_conditional_densities: dict, method='mixture model'):
         if method == 'mixture model':
             prevalence_estimator = MixtureModelEstimator()
             prevalence_estimator.set_positive_density(class_conditional_densities['pos'])
