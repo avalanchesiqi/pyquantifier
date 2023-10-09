@@ -14,7 +14,11 @@ def get_hot_values(toxicity_values, platform, metric):
     """
     # build a dataset object from the list
     num_items = len(toxicity_values)
-    df = pd.DataFrame.from_dict({'uid': list(range(num_items)), 'pos': cx_list, 'neg': 1-np.array(cx_list)})
+    df = pd.DataFrame.from_dict({
+        'uid': list(range(num_items)),
+        'pos': toxicity_values,
+        'neg': 1-np.array(toxicity_values)
+    })
     dataset = Dataset(df=df, labels=['pos', 'neg'])
 
     # load the calibration curve of the hot speech dataset
