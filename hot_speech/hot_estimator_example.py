@@ -27,7 +27,7 @@ def get_hot_values(toxicity_values, platform, metric):
 
     calibration_curve = cached_dists[f'{platform}_{metric}_calibration_curve']
     ex_prevalence_est = dataset.extrinsic_estimate(calibration_curve=calibration_curve)
-    print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
+    # print(f'extrinsic estimate: {ex_prevalence_est:.4f} on the a simulated data')
 
     # class_conditional_densities = cached_dists[f'{metric}_class_conditional_densities']
     # in_prevalence_est = dataset.intrinsic_estimate(class_conditional_densities=class_conditional_densities)
