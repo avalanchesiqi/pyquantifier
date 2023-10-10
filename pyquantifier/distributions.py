@@ -446,6 +446,7 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
         else:
             self.x_axis = x_axis
             self.y_axis = y_axis
+            self.num_bin = len(self.x_axis)
 
     def get_density(self, score):
         """Probability density at `score`.
@@ -461,9 +462,6 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
             Probability density evaluated at `score`
         """
         return self.y_axis[np.searchsorted(self.x_axis, score)]
-    
-    def get_length(self):
-        return len(self.x_axis)
 
 
 class JointDistribution:
@@ -576,7 +574,7 @@ class ExtrinsicJointDistribution(JointDistribution):
         self.class_conditional_densities = self.calculate_class_conditional_densities(num_bin)
 
     def calculate_label_distribution(self, num_bin):
-        x_axis = np.linspace(0, 1, num_bin)
+        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
         area_pos = sum(self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
@@ -589,7 +587,7 @@ class ExtrinsicJointDistribution(JointDistribution):
         return MultinomialDUD(['neg', 'pos'], np.array([area_neg, area_pos]))
 
     def calculate_class_conditional_densities(self, num_bin):
-        x_axis = np.linspace(0, 1, num_bin)
+        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
