@@ -12,5 +12,8 @@ In each notebook, you will find the learning objectives, and a dozen of TODO cod
 ### Tutorial Slides
 The tutorial slides are available [here](https://docs.google.com/presentation/d/1b-uO7TvJ8u1iUMzx-uDPQhQ7gu2rI1KcCcSinMDDZ_A/edit?usp=sharing).
 
+### The Calibration-Extrapolation Framework
+![The Calibration-Extrapolation Framework](framework.jpg)
+
 ### References and reading list
 - [References and reading list](https://avalanchesiqi.notion.site/ed68d0b0d08942da9272556548adb82f?v=eeab4969721049419939a84d9867172c)
