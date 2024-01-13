@@ -28,6 +28,11 @@ ColorPalette = {'pos': '#00539C',
                 'unknown': '#333333'}
 
 
+ColorPalette = {'pos': '#cc0000',
+                'neg': '#c9daf8',
+                'unknown': '#333333'}
+
+
 def save_to_img(img_name):
     if img_name:
         plt.savefig(os.path.join(img_folder, f'{img_name}.{img_kind}'),

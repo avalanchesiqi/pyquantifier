@@ -527,6 +527,8 @@ class JointDistribution:
             ax.tick_params(axis='both', which='major')
         
         plt.tight_layout()
+        # #save plt as pdf
+        # plt.savefig('five_distributions.pdf')
 
 
 class IntrinsicJointDistribution(JointDistribution):
@@ -550,7 +552,7 @@ class IntrinsicJointDistribution(JointDistribution):
 
     def calculate_calibration_curve(self, num_bin=1000):
         # calculate the calibration curve
-        x_axis = np.linspace(0, 1, num_bin + 1)
+        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
         pos_weight = self.label_distribution.get_density('pos')
         y_axis = [pos_weight * self.class_conditional_densities['pos'].get_density(x) /
                   self.classifier_score_distribution.get_density(x)
@@ -575,10 +577,10 @@ class ExtrinsicJointDistribution(JointDistribution):
 
     def calculate_label_distribution(self, num_bin):
         x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
-        area_pos = sum(self.calibration_curve.get_calibrated_prob(x_axis) * \
+        area_pos = np.nansum(self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
-        area_neg = sum((1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
+        area_neg = np.nansum((1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
         total_area = area_pos + area_neg

@@ -1,6 +1,7 @@
 import numpy as np
 
 from pyquantifier.plot import plot_stacked_frequency
+from pyquantifier.new_distributions import MixtureCUD
 
 
 class IntrinsicPrevalenceEstimator:
@@ -52,17 +53,23 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         return np.sqrt(np.sum((np.sqrt(p) - np.sqrt(q)) ** 2)) / np.sqrt(2)
 
     def estimate(self, cx_array):
-        num_bin = self.positivity_density.get_length()
-        x_axis = np.linspace(0, 1, num_bin + 1)
-        cx_hist, _ = np.histogram(cx_array, bins=x_axis, density=True)
+        if isinstance(cx_array, list):
+            num_bin = self.positivity_density.get_length()
+            cx_hist, _ = np.histogram(cx_array, bins=x_axis, density=True)
+        elif isinstance(cx_array, MixtureCUD):
+            num_bin = cx_array.num_bin
+            cx_hist = cx_array.y_axis
 
+        x_axis = np.arange(0.5/num_bin, 1, 1 / num_bin)
         min_dist = 10000
         best_p_p = 0
 
+        positive_shape = np.array([self.positivity_density.get_density(x) for x in x_axis])
+        negative_shape = np.array([self.negativity_density.get_density(x) for x in x_axis])
+
         for p_p in x_axis:
             dist = self.hellinger(cx_hist, 
-                                  np.array([self.positivity_density.get_density(x) for x in np.arange(0.05, 1, 0.1)]) * p_p 
-                                  + np.array([self.negativity_density.get_density(x) for x in np.arange(0.05, 1, 0.1)]) * (1 - p_p))
+                                  positive_shape * p_p + negative_shape * (1 - p_p))
             if dist < min_dist:
                 min_dist = dist
                 best_p_p = p_p

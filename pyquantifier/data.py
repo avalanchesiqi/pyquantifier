@@ -74,8 +74,8 @@ class Dataset:
         self.class_conditional_densities = self.infer_class_conditional_densities(num_bin, selection_weights)
         self.label_distribution = self.infer_label_distribution()
         self.classifier_score_distribution = self.infer_classifier_score_distribution(num_bin)
-        if isinstance(self.calibration_curve, BinnedCalibrationCurve):
-            self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
+        # if isinstance(self.calibration_curve, BinnedCalibrationCurve):
+        self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
 
     def update_calibration_curve(self, **kwds):
         self.calibration_curve = self.generate_calibration_curve(**kwds)

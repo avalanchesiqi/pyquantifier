@@ -26,33 +26,46 @@ class CalibrationCurve:
             ax = prepare_canvas()
 
         show_diagonal = kwds.pop('show_diagonal', False)
+        alpha = kwds.pop('alpha', 1)
 
         num_bin = len(self.x_axis)
         bin_width = 1 / num_bin
         bin_margin = bin_width / 2
 
-        for x, y in zip(self.x_axis, self.y_axis):
-            left_coord = x - bin_margin
-            right_coord = x + bin_margin
+        ax.fill_between(self.x_axis,
+                        np.zeros(num_bin),
+                        self.y_axis,
+                        facecolor=ColorPalette['pos'], alpha=alpha, lw=0)
+        ax.fill_between(self.x_axis,
+                        self.y_axis,
+                        np.ones(num_bin),
+                        facecolor=ColorPalette['neg'], alpha=alpha, lw=0)
 
-            ax.fill_between([left_coord, right_coord],
-                            [0, 0],
-                            [y, y],
-                            facecolor=ColorPalette['pos'], alpha=x, lw=0)
-            ax.fill_between([left_coord, right_coord],
-                            [y, y],
-                            [1, 1],
-                            facecolor=ColorPalette['neg'], alpha=x, lw=0)
+        # for x, y in zip(self.x_axis, self.y_axis):
+        #     left_coord = x - bin_margin
+        #     right_coord = x + bin_margin
+
+        #     ax.fill_between([left_coord, right_coord],
+        #                     [0, 0],
+        #                     [y, y],
+        #                     facecolor=ColorPalette['pos'], alpha=x, lw=0)
+        #     ax.fill_between([left_coord, right_coord],
+        #                     [y, y],
+        #                     [1, 1],
+        #                     facecolor=ColorPalette['neg'], alpha=x, lw=0)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 
         if show_diagonal:
             ax.plot([0, 1], [0, 1], 'k--', lw=2)
 
-        ax.set_xlabel('$C(X)$')
-        ax.set_ylabel('$P(GT=1|C(X))$')
-        ax.set_yticks([0, 0.5, 1])
+        ax.set_xlabel('$C(x)$')
+        ax.set_ylabel('$P(y=1|C(x))$')
+        # ax.set_yticks([0, 0.5, 1])
+        ax.set_xlim(xmin=0)
         ax.set_ylim(ymin=0)
+        ax.set_xticks([])
+        ax.set_yticks([])
 
 
 class BinnedCalibrationCurve(CalibrationCurve):
