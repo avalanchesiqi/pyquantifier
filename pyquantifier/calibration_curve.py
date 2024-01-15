@@ -64,8 +64,10 @@ class CalibrationCurve:
         # ax.set_yticks([0, 0.5, 1])
         ax.set_xlim(xmin=0)
         ax.set_ylim(ymin=0)
-        ax.set_xticks([])
-        ax.set_yticks([])
+        # ax.set_xticks([])
+        # ax.set_yticks([])
+        # ax.set_xlabel('')
+        # ax.set_ylabel('')
 
 
 class BinnedCalibrationCurve(CalibrationCurve):

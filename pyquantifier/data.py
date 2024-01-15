@@ -75,7 +75,8 @@ class Dataset:
         self.label_distribution = self.infer_label_distribution()
         self.classifier_score_distribution = self.infer_classifier_score_distribution(num_bin)
         # if isinstance(self.calibration_curve, BinnedCalibrationCurve):
-        self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
+        # self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
+        self.calibration_curve = self.generate_calibration_curve('platt scaling', num_bin=num_bin)
 
     def update_calibration_curve(self, **kwds):
         self.calibration_curve = self.generate_calibration_curve(**kwds)
@@ -163,7 +164,7 @@ class Dataset:
         DataFrame
             A pandas DataFrame object
         """
-        return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), replace=False)
+        return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), replace=True)
 
     def select_sample_for_annotation(self, n, strategy='random', bins=10):
         """Select n items from the dataset for annotation.
@@ -190,6 +191,9 @@ class Dataset:
             # create a new column based on the pos column
             df['bin'] = df.apply(lambda row: get_bin_idx(row['pos'], size=bins), axis=1)
             original_bin_dict = df['bin'].value_counts().to_dict()
+            for i in range(bins):
+                if i not in original_bin_dict:
+                    original_bin_dict[i] = 0
 
             if strategy == 'uniform':
                 n_per_bin = n // bins
@@ -203,6 +207,8 @@ class Dataset:
             # drop the bin column
             df = df.drop(columns=['bin'])
 
+            print('original_bin_dict', original_bin_dict)
+            print('to_sample_bin_dict', to_sample_bin_dict)
             selection_weights = [to_sample_bin_dict[i] / original_bin_dict[i] for i in range(bins)]
             return Dataset(df=df, labels=self.labels), selection_weights
         else:
@@ -346,10 +352,11 @@ class Dataset:
 
         for label in self.labels:
             self.class_conditional_densities[label].plot(ax=axes[0], color=ColorPalette[label])
-        axes[0].set_title('Class Conditional Densities')
+        # axes[0].set_title('Class Conditional Densities')
 
-        self.label_distribution.plot(ax=axes[1], ci=True)
-        axes[1].set_title('Label Density')
+        self.label_distribution.plot(ax=axes[1], ci=False)
+        axes[1].spines['left'].set_visible(False)
+        # axes[1].set_title('Label Density')
 
         prev_bottom = None
         for label in self.labels:
@@ -357,20 +364,69 @@ class Dataset:
             prev_bottom = self.class_conditional_densities[label].plot(
                 ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
                 return_bottom=True, weight=weight)
-        axes[2].set_title('Joint Density')
+        # axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3], density=True)
-        axes[3].set_title('Classifier Score Density')
+        # axes[3].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
-        axes[4].set_title('Calibration Curve')
+        # axes[4].set_title('Calibration Curve')
 
         for ax in axes:
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.tick_params(axis='both', which='major')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlabel('')
+            ax.set_ylabel('')
         
         plt.tight_layout()
+    
+    def profile_dataset_rev(self, num_bin=10, selection_weights=None):
+        """Plot the five distributions of the dataset.
+
+        Parameters
+        ----------
+        num_bin : int
+            Number of bins to use
+        """
+        fig, axes = plt.subplots(1, 5, figsize=(16, 3))
+        axes = axes.ravel()
+
+        self.update_dataset_model(num_bin=num_bin, selection_weights=selection_weights)
+
+        for label in self.labels:
+            self.class_conditional_densities[label].plot(ax=axes[3], color=ColorPalette[label])
+        # axes[0].set_title('Class Conditional Densities')
+
+        self.label_distribution.plot(ax=axes[4], ci=False)
+        axes[4].spines['left'].set_visible(False)
+        # axes[1].set_title('Label Density')
+
+        prev_bottom = None
+        for label in self.labels:
+            weight = self.label_distribution.get_density(label)
+            prev_bottom = self.class_conditional_densities[label].plot(
+                ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
+                return_bottom=True, weight=weight)
+        # axes[2].set_title('Joint Density')
+
+        self.classifier_score_distribution.plot(ax=axes[1], density=True)
+        # axes[3].set_title('Classifier Score Density')
+
+        self.calibration_curve.plot(ax=axes[0], show_diagonal=False)
+        # axes[4].set_title('Calibration Curve')
+
+        for ax in axes:
+            ax.spines['right'].set_visible(False)
+            ax.spines['top'].set_visible(False)
+            ax.tick_params(axis='both', which='major')
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlabel('')
+            ax.set_ylabel('')
+
 
     def intrinsic_estimate(self, class_conditional_densities: dict, method='mixture model'):
         if method == 'mixture model':

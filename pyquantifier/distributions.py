@@ -117,8 +117,8 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
         ax.set_ylabel('density')
         ax.set_yticks([0, 0.5, 1])
 
-        for x, y in zip(x_axis, density_axis):
-            ax.text(x, y + 0.01, f'{y:.2f}', color='k', ha='center', va='bottom', fontsize=16)
+        # for x, y in zip(x_axis, density_axis):
+        #     ax.text(x, y + 0.01, f'{y:.2f}', color='k', ha='center', va='bottom', fontsize=16)
 
 
 class MultinomialDUD(DiscreteUnivariateDistribution):
@@ -308,7 +308,7 @@ class MixtureCUD(ContinuousUnivariateDistribution):
     --------
     If you want to generate a mixture distribution consisting of two Beta
     distributions and one uniform distribution, and the weights for each
-    compoment are 2:7:1, you can do the following:
+    component are 2:7:1, you can do the following:
 
     >>> from scipy.stats import beta, uniform
     >>> mcud_rv = MixtureCUD(components=[beta(8, 2), beta(2, 5), uniform(0, 1)],
@@ -340,7 +340,8 @@ class MixtureCUD(ContinuousUnivariateDistribution):
         """
         bin_width = 1 / num_bin
         bin_margin = bin_width / 2
-        self.x_axis = np.arange(bin_margin, 1, bin_width)
+        # self.x_axis = np.arange(bin_margin, 1, bin_width)
+        self.x_axis = np.linspace(0, 1, num_bin+1)
         self.y_axis = np.array([self.get_density(x) for x in self.x_axis])
         self.num_bin = len(self.x_axis)
 
@@ -434,13 +435,14 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
 
     >>> bcud_rv.get_density(0.7)
     """
-    def __init__(self, data=None, num_bin=0, x_axis=None, y_axis=None):
+    def __init__(self, data=None, num_bin=10, x_axis=None, y_axis=None):
         if data is not None:
             self.data = np.array(data)
             self.num_bin = num_bin
             bin_width = 1 / num_bin
             bin_margin = bin_width / 2
-            self.x_axis = np.arange(bin_margin, 1, bin_width)
+            # self.x_axis = np.arange(bin_margin, 1, bin_width)
+            self.x_axis = np.linspace(0, 1, num_bin+1)
             bin_edges = np.linspace(0, 1, self.num_bin + 1)
             self.y_axis = np.histogram(self.data, bins=bin_edges, density=True)[0]
         else:
@@ -461,7 +463,9 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
         pdf : ndarray
             Probability density evaluated at `score`
         """
-        return self.y_axis[np.searchsorted(self.x_axis, score)]
+        # find the index of element in x_axis that is closest to score
+        # return self.y_axis[np.searchsorted(self.x_axis, score)]
+        return self.y_axis[np.argmin(np.abs(self.x_axis - score))]
 
 
 class JointDistribution:
@@ -552,7 +556,8 @@ class IntrinsicJointDistribution(JointDistribution):
 
     def calculate_calibration_curve(self, num_bin=1000):
         # calculate the calibration curve
-        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        # x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        x_axis = np.linspace(0, 1, num_bin+1)
         pos_weight = self.label_distribution.get_density('pos')
         y_axis = [pos_weight * self.class_conditional_densities['pos'].get_density(x) /
                   self.classifier_score_distribution.get_density(x)
@@ -576,7 +581,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         self.class_conditional_densities = self.calculate_class_conditional_densities(num_bin)
 
     def calculate_label_distribution(self, num_bin):
-        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        # x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        x_axis = np.linspace(0, 1, num_bin+1)
         area_pos = np.nansum(self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
@@ -589,7 +595,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         return MultinomialDUD(['neg', 'pos'], np.array([area_neg, area_pos]))
 
     def calculate_class_conditional_densities(self, num_bin):
-        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        # x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        x_axis = np.linspace(0, 1, num_bin+1)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
