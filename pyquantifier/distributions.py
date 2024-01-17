@@ -98,27 +98,75 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
     def plot(self, **kwds):
         """Plot bar chart of discrete univariate distributions.
         """
+        # ax = kwds.pop('ax', None)
+        # if ax is None:
+        #     ax = prepare_canvas()
+
+        # x_axis = np.arange(len(self.labels))
+        # label_axis = sorted(self.labels)
+        # density_axis = [self.get_density(label) for label in label_axis]
+        # color_axis = [ColorPalette[label] for label in label_axis]
+
+        # ci = kwds.pop('ci', False)
+        # yerr = [self.get_ci(label) for label in label_axis] if ci else None
+
+        # ax.bar(x_axis, density_axis, width=0.7, color=color_axis, lw=2, edgecolor='k', yerr=yerr)
+        
+        # ax.set_xticks(x_axis)
+        # ax.set_xticklabels(label_axis)
+        # ax.set_ylabel('density')
+        # ax.set_yticks([0, 0.5, 1])
+
+        # # for x, y in zip(x_axis, density_axis):
+        # #     ax.text(x, y + 0.01, f'{y:.2f}', color='k', ha='center', va='bottom', fontsize=16)
+
         ax = kwds.pop('ax', None)
         if ax is None:
             ax = prepare_canvas()
+        
+        ax.invert_yaxis()
+        # ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+        ax.set_xlim(-0.1, 1.1)
+        ax.set_ylim(-0.25, 0.6)
 
-        x_axis = np.arange(len(self.labels))
         label_axis = sorted(self.labels)
-        density_axis = [self.get_density(label) for label in label_axis]
+        density_axis = np.array([self.get_density(label) for label in label_axis])
+        data_cum = density_axis.cumsum(axis=0)
         color_axis = [ColorPalette[label] for label in label_axis]
 
-        ci = kwds.pop('ci', False)
-        yerr = [self.get_ci(label) for label in label_axis] if ci else None
+        for i, color in enumerate(color_axis):
+            widths = density_axis[i]
+            starts = data_cum[i] - widths
+            rects = ax.barh(0, widths, left=starts, height=0.4, align='center',
+                            color=color, alpha=1, lw=2, edgecolor='k')
 
-        ax.bar(x_axis, density_axis, width=0.7, color=color_axis, lw=2, edgecolor='k', yerr=yerr)
+            # r, g, b, _ = color
+            # text_color = 'white' if r * g * b < 0.5 else 'darkgrey'
+            # ax.bar_label(rects, label_type='center', color='k', fmt='%.2f')
+
+        # tick_positions = data_cum - density_axis / 2
+        # ax.set_xticks(tick_positions)
+        # ax.set_xticklabels(label_axis)
+
+        # x_axis = np.arange(len(self.labels))
+
+        # ci = kwds.pop('ci', False)
+        # yerr = [self.get_ci(label) for label in label_axis] if ci else None
+
+        # plot a horizontal bar chart for density_axis
+        # ax.barh(x_axis, density_axis, height=0.7, color=color_axis, lw=2, edgecolor='k', xerr=yerr, alpha=0.5)
+        # ax.bar(x_axis, density_axis, width=0.7, color=color_axis, lw=2, edgecolor='k', yerr=yerr, alpha=0.5)
         
-        ax.set_xticks(x_axis)
-        ax.set_xticklabels(label_axis)
-        ax.set_ylabel('density')
-        ax.set_yticks([0, 0.5, 1])
-
-        # for x, y in zip(x_axis, density_axis):
-        #     ax.text(x, y + 0.01, f'{y:.2f}', color='k', ha='center', va='bottom', fontsize=16)
+        # ax.set_xticks(x_axis)
+        # ax.set_xticklabels(label_axis)
+        # ax.set_ylabel('density')
+        # ax.set_xticks([0, 0.5, 1])
+        # for Figma fig
+        # hide y ticks
+        # ax.set_yticks([])
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
 
 
 class MultinomialDUD(DiscreteUnivariateDistribution):

@@ -382,6 +382,7 @@ class Dataset:
             ax.set_ylabel('')
         
         plt.tight_layout()
+        return axes
     
     def profile_dataset_rev(self, num_bin=10, selection_weights=None):
         """Plot the five distributions of the dataset.
@@ -426,6 +427,9 @@ class Dataset:
             ax.set_yticks([])
             ax.set_xlabel('')
             ax.set_ylabel('')
+
+        plt.tight_layout()
+        return axes
 
 
     def intrinsic_estimate(self, class_conditional_densities: dict, method='mixture model'):

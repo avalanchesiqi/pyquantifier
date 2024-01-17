@@ -71,7 +71,7 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         # print(positive_shape)
         # print(negative_shape)
 
-        for p_p in np.arange(0, 1, 0.01):
+        for p_p in np.arange(0, 1.01, 0.01):
             dist = self.hellinger(cx_hist, 
                                   positive_shape * p_p + negative_shape * (1 - p_p))
             if dist < min_dist:

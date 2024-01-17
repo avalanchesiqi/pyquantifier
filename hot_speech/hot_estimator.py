@@ -70,7 +70,7 @@ def generate_annotated_dataset_dists():
     uid = 0
 
     label_map = {True: 'pos', False: 'neg'}
-    with open('hot_speech/labeled_hot_data_202108.json', 'r') as fin:
+    with open('hot_speech/data/labeled_hot_data_202108.json', 'r') as fin:
         for line in fin:
             comment_json = json.loads(line.rstrip())
             platform = comment_json['platform']
@@ -95,7 +95,7 @@ def generate_annotated_dataset_dists():
     base_reddit_toxicity_list = []
     base_twitter_toxicity_list = []
     base_youtube_toxicity_list = []
-    with open('hot_speech/202108_base_hot_comments.json', 'r') as fin:
+    with open('hot_speech/data/202108_base_hot_comments.json', 'r') as fin:
         for line in fin:
             article_json = json.loads(line.rstrip())
             reported_rd_comments = article_json['reported_rd_comments']
@@ -127,7 +127,7 @@ def generate_annotated_dataset_dists():
             cached_dists[f'{platform}_{metric}_calibration_curve'] = calibration_curve
             cached_dists[f'{platform}_{metric}_class_conditional_densities'] = class_conditional_densities
         
-    pickle.dump(cached_dists, open('hot_speech/current.pkl', 'wb'))
+    pickle.dump(cached_dists, open('hot_speech/hot_cached_jds/current.pkl', 'wb'))
 
 
 def single_hot_prevalence_estimate(cx_list, platform, metric, cached_dists, assumption='extrinsic'):
@@ -213,20 +213,20 @@ def load_extrapolation_comments(filepath, start_date, end_date, toxicity_field='
 
 def main():
     # generate jds
-    old_cached_dists_filepath = 'hot_speech/until_2022-05-11.pkl'
-    if not os.path.exists(old_cached_dists_filepath):
-        generate_annotated_dataset_dists()
+    old_cached_dists_filepath = 'hot_speech/hot_cached_jds/until_2022-05-11.pkl'
+    # if not os.path.exists(old_cached_dists_filepath):
+    #     generate_annotated_dataset_dists()
     old_cached_dists = pickle.load(open(old_cached_dists_filepath, 'rb'))
-    current_cached_dists_filepath = 'hot_speech/current.pkl'
-    if not os.path.exists(current_cached_dists_filepath):
-        generate_annotated_dataset_dists()
+    current_cached_dists_filepath = 'hot_speech/hot_cached_jds/current.pkl'
+    # if not os.path.exists(current_cached_dists_filepath):
+    #     generate_annotated_dataset_dists()
     current_cached_dists = pickle.load(open(current_cached_dists_filepath, 'rb'))
 
     # ----------------- #
     # load every day data
-    cached_extrapolation_comment_dict_filepath = 'hot_speech/hot_extrapolation_comment_dict_consistent.pkl'
+    cached_extrapolation_comment_dict_filepath = 'hot_speech/data/hot_extrapolation_comment_dict_consistent.pkl'
     if not os.path.exists(cached_extrapolation_comment_dict_filepath):
-        comment_2022_dict = load_extrapolation_comments('hot_speech/2022_classified_hot_comments.json', start_date='2022-01-01', end_date='2022-12-31',  toxicity_field='toxicity')
+        comment_2022_dict = load_extrapolation_comments('hot_speech/data/2022_classified_hot_comments.json', start_date='2022-01-01', end_date='2022-12-31',  toxicity_field='toxicity')
         # comment_2023_dict = load_extrapolation_comments('hot_speech/2023_classified_hot_comments.json', start_date='2023-01-01', end_date='2023-06-19',  toxicity_field='toxicity')
         # extrapolation_comment_dict = {**comment_2022_dict, **comment_2023_dict}
         extrapolation_comment_dict = comment_2022_dict
@@ -264,9 +264,9 @@ def main():
             data_dict[f'{platform}_toxic_threshold_list'].append(sum([1 for x in platform_cx_list if x >= 0.7]))
             for metric in ['toxic', 'hot']:
                 if day < '2022-05-12':
-                    est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, old_cached_dists, assumption='extrinsic', bootstrap=True)
+                    est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, old_cached_dists, assumption='intrinsic', bootstrap=True)
                 else:
-                    est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, current_cached_dists, assumption='extrinsic', bootstrap=True)
+                    est_mean, est_lb, est_ub = hot_prevalence_estimate(platform_cx_list, platform, metric, current_cached_dists, assumption='intrinsic', bootstrap=True)
                 data_dict[f'{platform}_{metric}_list'].append(est_mean)
                 data_dict[f'{platform}_{metric}_ub_list'].append(est_ub)
                 data_dict[f'{platform}_{metric}_lb_list'].append(est_lb)
@@ -277,7 +277,7 @@ def main():
     data_df.index = pd.to_datetime(data_df.index)
     data_df.drop(columns=['date'], inplace=True)
 
-    data_df.to_csv('hot_speech/extrinsic_hot_prevalence_estimation_2022.csv')
+    data_df.to_csv('hot_speech/intrinsic_hot_prevalence_estimation_2022.csv')
 
 
 if __name__ == '__main__':
