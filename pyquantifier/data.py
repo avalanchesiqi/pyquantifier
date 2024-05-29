@@ -7,7 +7,7 @@ from pyquantifier.distributions import BinnedDUD, BinnedCUD, ExtrinsicJointDistr
 from sklearn.linear_model import LogisticRegression
 from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
 from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
-from pyquantifier.util import get_bin_idx
+from pyquantifier.util import get_bin_idx, get_binned_x_axis
 
 
 # Item class
@@ -46,7 +46,7 @@ class Item:
 
 # Dataset class
 class Dataset:
-    def __init__(self, labels, df=None, items=None):
+    def __init__(self, labels, df=None, items=None, column_mapping=None):
         """Initialize a Dataset object.
 
         Parameters
@@ -65,6 +65,8 @@ class Dataset:
             self.df = self.to_dataframe(items)
         else:
             raise ValueError('either df or items must be provided')
+        if column_mapping is not None:
+            self.df = self.df.rename(columns=column_mapping)
         self.label_distribution = None
         self.class_conditional_densities = None
         self.classifier_score_distribution = None
@@ -74,9 +76,9 @@ class Dataset:
         self.class_conditional_densities = self.infer_class_conditional_densities(num_bin, selection_weights)
         self.label_distribution = self.infer_label_distribution()
         self.classifier_score_distribution = self.infer_classifier_score_distribution(num_bin)
-        # if isinstance(self.calibration_curve, BinnedCalibrationCurve):
-        # self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
-        self.calibration_curve = self.generate_calibration_curve('platt scaling', num_bin=num_bin)
+        if self.calibration_curve is None:
+            self.calibration_curve = self.generate_calibration_curve('nonparametric binning', num_bin=num_bin)
+        # self.calibration_curve = self.generate_calibration_curve('platt scaling', num_bin=num_bin)
 
     def update_calibration_curve(self, **kwds):
         self.calibration_curve = self.generate_calibration_curve(**kwds)
@@ -249,8 +251,8 @@ class Dataset:
         BinnedDUD
             A BinnedDUD object
         """
-        x_axis = np.arange(0.5 / num_bin, 1, 1 / num_bin)
-        y_axis, dummy = np.histogram(self.df['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        x_axis = get_binned_x_axis(num_bin)
+        y_axis, _ = np.histogram(self.df['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
         return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
     def infer_class_conditional_density(self, label, num_bin, selection_weights=None):
@@ -268,8 +270,8 @@ class Dataset:
         BinnedDUD
             A BinnedDUD object
         """
-        x_axis = np.arange(0.5 / num_bin, 1, 1 / num_bin)
-        y_axis, dummy = np.histogram(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        x_axis = get_binned_x_axis(num_bin)
+        y_axis, _ = np.histogram(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
         if selection_weights is not None:
             assert num_bin == len(selection_weights)
             selection_weights = np.array(selection_weights)
@@ -352,11 +354,11 @@ class Dataset:
 
         for label in self.labels:
             self.class_conditional_densities[label].plot(ax=axes[0], color=ColorPalette[label])
-        # axes[0].set_title('Class Conditional Densities')
+        axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1], ci=False)
         axes[1].spines['left'].set_visible(False)
-        # axes[1].set_title('Label Density')
+        axes[1].set_title('Label Density')
 
         prev_bottom = None
         for label in self.labels:
@@ -364,22 +366,22 @@ class Dataset:
             prev_bottom = self.class_conditional_densities[label].plot(
                 ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
                 return_bottom=True, weight=weight)
-        # axes[2].set_title('Joint Density')
+        axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3], density=True)
-        # axes[3].set_title('Classifier Score Density')
+        axes[3].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[4], show_diagonal=False)
-        # axes[4].set_title('Calibration Curve')
+        axes[4].set_title('Calibration Curve')
 
         for ax in axes:
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.tick_params(axis='both', which='major')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_xlabel('')
-            ax.set_ylabel('')
+            # ax.set_xticks([])
+            # ax.set_yticks([])
+            # ax.set_xlabel('')
+            # ax.set_ylabel('')
         
         plt.tight_layout()
         return axes
@@ -399,11 +401,11 @@ class Dataset:
 
         for label in self.labels:
             self.class_conditional_densities[label].plot(ax=axes[3], color=ColorPalette[label])
-        # axes[0].set_title('Class Conditional Densities')
+        axes[3].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[4], ci=False)
         axes[4].spines['left'].set_visible(False)
-        # axes[1].set_title('Label Density')
+        axes[4].set_title('Label Density')
 
         prev_bottom = None
         for label in self.labels:
@@ -411,22 +413,22 @@ class Dataset:
             prev_bottom = self.class_conditional_densities[label].plot(
                 ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
                 return_bottom=True, weight=weight)
-        # axes[2].set_title('Joint Density')
+        axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[1], density=True)
-        # axes[3].set_title('Classifier Score Density')
+        axes[1].set_title('Classifier Score Density')
 
         self.calibration_curve.plot(ax=axes[0], show_diagonal=False)
-        # axes[4].set_title('Calibration Curve')
+        axes[0].set_title('Calibration Curve')
 
         for ax in axes:
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.tick_params(axis='both', which='major')
-            ax.set_xticks([])
-            ax.set_yticks([])
-            ax.set_xlabel('')
-            ax.set_ylabel('')
+            # ax.set_xticks([])
+            # ax.set_yticks([])
+            # ax.set_xlabel('')
+            # ax.set_ylabel('')
 
         plt.tight_layout()
         return axes

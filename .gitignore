@@ -12,4 +12,5 @@ venv
 html
 lib
 examples/figs
-hot_speech/*
+hot_speech_report/*
+icwsm_tutorial/*

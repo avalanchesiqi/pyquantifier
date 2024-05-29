@@ -82,7 +82,13 @@ class BinnedCalibrationCurve(CalibrationCurve):
         self.y_axis = y_axis
 
     def get_calibrated_prob(self, cxs):
-        return np.array([self.y_axis[np.searchsorted(self.x_axis, score)] for score in cxs])
+        # print(len(self.x_axis), len(self.y_axis))
+        # for cx in cxs:
+        #     if np.searchsorted(self.x_axis, cx) > 9:
+        #         print(self.x_axis)
+        #         print(cx, np.searchsorted(self.x_axis, cx), get_bin_idx(cx, len(self.x_axis)))
+        # return np.array([self.y_axis[np.searchsorted(self.x_axis, score)] for score in cxs])
+        return np.array([self.y_axis[get_bin_idx(cx, len(self.x_axis))] for cx in cxs])
 
 
 class PlattScaling(CalibrationCurve):

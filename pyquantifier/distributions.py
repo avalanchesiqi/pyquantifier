@@ -143,7 +143,7 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
 
             # r, g, b, _ = color
             # text_color = 'white' if r * g * b < 0.5 else 'darkgrey'
-            # ax.bar_label(rects, label_type='center', color='k', fmt='%.2f')
+            ax.bar_label(rects, label_type='center', color='k', fmt='%.3f', size=14)
 
         # tick_positions = data_cum - density_axis / 2
         # ax.set_xticks(tick_positions)
@@ -489,8 +489,8 @@ class BinnedCUD(ContinuousUnivariateDistribution, EmpiricalData):
             self.num_bin = num_bin
             bin_width = 1 / num_bin
             bin_margin = bin_width / 2
-            # self.x_axis = np.arange(bin_margin, 1, bin_width)
-            self.x_axis = np.linspace(0, 1, num_bin+1)
+            self.x_axis = np.arange(bin_margin, 1, bin_width)
+            # self.x_axis = np.linspace(0, 1, num_bin+1)
             bin_edges = np.linspace(0, 1, self.num_bin + 1)
             self.y_axis = np.histogram(self.data, bins=bin_edges, density=True)[0]
         else:
@@ -629,8 +629,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         self.class_conditional_densities = self.calculate_class_conditional_densities(num_bin)
 
     def calculate_label_distribution(self, num_bin):
-        # x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
-        x_axis = np.linspace(0, 1, num_bin+1)
+        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        # x_axis = np.linspace(0, 1, num_bin+1)
         area_pos = np.nansum(self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
