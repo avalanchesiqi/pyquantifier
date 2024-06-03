@@ -12,15 +12,16 @@ python3 -m venv .venv
 source .venv/bin/activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
+```
 
 ## Tutorial Jupyter Notebooks
 The tutorial includes four sections:
-1. [Generating simulated data for prevalence estimation tasks](/examples/Sec0-Data-Generating.ipynb)
-2. [Profiling the joint distribution for the base period](/examples/Sec1-Joint-Distribution-And-Naive-Approach.ipynb)
+1. [Generating representations of joint distributions](/icwsm_tutorial/1-Generate-Joint-Distribution.ipynb)
+<!-- 2. [Profiling the joint distribution for the base period](/examples/Sec1-Joint-Distribution-And-Naive-Approach.ipynb)
 3. [Labeling a portion of data and using it for calibration](/examples/Sec2-Labeled-Sample-To-Calibration%20.ipynb)
-4. [Extrapolating the joint distributions of the base period to a target period](/examples/Sec3-Extrapolating-To-Target-Dataset-Joint-Distribution.ipynb)
+4. [Extrapolating the joint distributions of the base period to a target period](/examples/Sec3-Extrapolating-To-Target-Dataset-Joint-Distribution.ipynb) -->
 
-In each notebook, you will find the learning objectives, and a dozen of TODO code cells that we expect you to complete.
+<!-- In each notebook, you will find the learning objectives, and a dozen of TODO code cells that we expect you to complete. -->
 
 ## Toxic comments on social media
 [Estimating the Fraction of Toxic Comments on News Articles](/icwsm_tutorial/Toxicity-Calibrate-Extrapolate.ipynb)
