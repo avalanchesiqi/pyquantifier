@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import numpy as np
 from pyquantifier.conf import *
 from pyquantifier.plot import prepare_canvas, one_gradient_plot, \
-    save_to_img, plot_empirical_hist
+    save_to_img, plot_empirical_hist, fine_axis, ColorPalette
 
 
 class MixtureDistribution:

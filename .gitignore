@@ -8,7 +8,9 @@ img/*.png
 .idea
 .vscode
 env
+.env
 venv
+.venv
 html
 lib
 examples/figs

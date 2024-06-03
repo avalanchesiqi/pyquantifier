@@ -53,7 +53,7 @@ def prepare_canvas():
     return ax
 
 
-def one_gradient_plot(ax, x_axis, top_axis, bottom_axis, **kwds):
+def one_gradient_plot(ax, x_axis, top_axis, bottom_axis=None, **kwds):
     color = kwds.get('color', ColorPalette['unknown'])
     label = kwds.get('label', '')
     edge = kwds.get('edge', True)
@@ -62,6 +62,9 @@ def one_gradient_plot(ax, x_axis, top_axis, bottom_axis, **kwds):
     num_bin = len(x_axis)
     bin_width = 1 / num_bin
     bin_margin = bin_width / 2
+    
+    if bottom_axis is None:
+        bottom_axis = np.zeros(num_bin)
 
     for x, top_coord, bottom_coord in zip(x_axis, top_axis, bottom_axis):
         left_coord = x - bin_margin
@@ -136,7 +139,7 @@ def plot_empirical_hist(data, **kwds):
     ax = kwds.get('ax', None)
     if ax is None:
         ax = prepare_canvas()
-    color = kwds.get('color', ColorPalette.unknown_color)
+    color = kwds.get('color', ColorPalette['unknown'])
     density = kwds.get('density', False)
     ylabel = kwds.get('ylabel', 'frequency')
     img_name = kwds.get('img_name', None)
@@ -176,10 +179,10 @@ def plot_empirical_bar(data, **kwds):
     label_axis = sorted(data.keys())
     density_axis = [data[k] for k in label_axis]
 
-    if num_label == 2:
-        color_palette = ColorPalette.CC2
+    # if num_label == 2:
+    #     color_palette = ColorPalette.CC2
 
-    ax.bar(x_axis, density_axis, width=0.7, color=color_palette,
+    ax.bar(x_axis, density_axis, width=0.7, color=[ColorPalette[k] for k in label_axis],
            lw=2, edgecolor='k')
     ax.set_xticks(x_axis)
     ax.set_xticklabels(label_axis)

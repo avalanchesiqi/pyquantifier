@@ -1,4 +1,17 @@
-# Python package for [ICWSM 2023 Tutorial](https://avalanchesiqi.github.io/prevalence-estimation-tutorial/) "Prevalence Estimation in Social Media Using Black Box Classifiers"
+# Python package for [ICWSM Tutorial](https://avalanchesiqi.github.io/prevalence-estimation-tutorial/) "Prevalence Estimation in Social Media Using Black Box Classifiers"
+
+## Setup
+Go to the `pyquantifier` directory,
+```bash
+cd pyquantifier
+```
+
+### Setup Python venv and install requirements
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 
 ## Tutorial Jupyter Notebooks
 The tutorial includes four sections:
@@ -9,8 +22,11 @@ The tutorial includes four sections:
 
 In each notebook, you will find the learning objectives, and a dozen of TODO code cells that we expect you to complete.
 
+## Toxic comments on social media
+[Estimating the Fraction of Toxic Comments on News Articles](/icwsm_tutorial/Toxicity-Calibrate-Extrapolate.ipynb)
+
 ### Tutorial Slides
-The tutorial slides are available [here](https://docs.google.com/presentation/d/1b-uO7TvJ8u1iUMzx-uDPQhQ7gu2rI1KcCcSinMDDZ_A/edit?usp=sharing).
+The tutorial slides are available [here](https://docs.google.com/presentation/d/1_-hpHB2aZb8Cu5QUfRwEHWEAJX3AYnVnIEKu33RK0w0/edit?usp=sharing).
 
 ### The Calibration-Extrapolation Framework
 ![The Calibration-Extrapolation Framework](framework.jpg)

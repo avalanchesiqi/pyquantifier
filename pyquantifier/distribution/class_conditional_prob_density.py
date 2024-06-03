@@ -20,17 +20,15 @@ class ParametricConditionalDensities:
         return self.class_density_dict[class_name].pdf(cx)
 
     def plot_pdf(self, **kwds):
-        cp = eval(f'ColorPalette.CC{self.num_class}')
         ax = kwds.pop('ax', None)
         if ax is None:
             ax = prepare_canvas()
         img_name = kwds.pop('img_name', None)
 
-        for color_idx, (class_name, class_density) in enumerate(
-                self.class_density_dict.items()):
+        for class_name, class_density in self.class_density_dict.items():
             rv_pdf = class_density.pdf(fine_axis)
             one_gradient_plot(ax, fine_axis, rv_pdf,
-                              color=cp[color_idx],
+                              color=ColorPalette[class_name],
                               label=class_name, **kwds)
 
         ax.set_xlabel('$C(X)$')
@@ -59,10 +57,8 @@ class InferredConditionalDensities:
         pass
 
     def plot_hist(self, **kwds):
-        cp = eval(f'ColorPalette.CC{self.num_class}')
-        for color_idx, (class_name, cxs) in enumerate(
-                self.class_densities.items()):
-            plot_empirical_hist(cxs, color=cp[color_idx],
+        for class_name, cxs in self.class_densities.items():
+            plot_empirical_hist(cxs, color=ColorPalette[class_name],
                                 density=True, ylabel='density', **kwds)
 
 

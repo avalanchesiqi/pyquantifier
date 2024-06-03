@@ -37,8 +37,6 @@ class EmpiricalJointDistribution:
             ax = prepare_canvas()
         img_name = kwds.get('img_name', None)
 
-        cp = eval(f'ColorPalette.CC{self.num_class}')
-
         prev_hist = np.zeros(num_coarse_bin)
         for color_idx, (class_name, cxs) in enumerate(
                 self.class_conditional_densities.class_densities.items()):
@@ -46,12 +44,12 @@ class EmpiricalJointDistribution:
             if color_idx == self.num_class - 1:
                 one_gradient_plot(ax, shift_axis(coarse_axis), hist + prev_hist,
                                   bottom_axis=prev_hist,
-                                  color=cp[color_idx],
-                                  edge_color=ColorPalette.unknown_color)
+                                  color=ColorPalette[class_name],
+                                  edge_color=ColorPalette['unknown'])
             else:
                 one_gradient_plot(ax, shift_axis(coarse_axis), hist + prev_hist,
                                   bottom_axis=prev_hist,
-                                  color=cp[color_idx],
+                                  color=ColorPalette[class_name],
                                   edge=False)
             prev_hist += hist
 
@@ -155,8 +153,8 @@ class ParametricJointDensity2:
         for cx, ccx in zip(all_cxs, all_ccxs):
             gt = random.choices([0, 1], [1 - ccx, ccx])[0]
             if gt:
-                all_data_points.append((cx, 'Pos'))
+                all_data_points.append((cx, 'pos'))
             else:
-                all_data_points.append((cx, 'Neg'))
+                all_data_points.append((cx, 'neg'))
 
         return all_data_points
