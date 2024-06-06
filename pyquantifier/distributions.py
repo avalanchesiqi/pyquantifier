@@ -323,11 +323,17 @@ class ContinuousUnivariateDistribution(UnivariateDistribution):
         ax.set_xlabel('score')
         ax.set_ylabel('density')
         ax.set_xlim([-0.02, 1.02])
-        ax.set_ylim([0, max((np.max(top_axis) * 1.1, prev_ymax))])
+        ax.set_ylim(ymin=0)
+        # ax.set_ylim([0, max((np.max(top_axis) * 1.1, prev_ymax))])
 
         return_bottom = kwds.pop('return_bottom', False)
+        return_ax = kwds.pop('return_ax', False)
+        if return_bottom and return_ax:
+            return top_axis, ax
         if return_bottom:
             return top_axis
+        if return_ax:
+            return ax
 
 
 class MixtureCUD(ContinuousUnivariateDistribution):
