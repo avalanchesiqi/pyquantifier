@@ -1,7 +1,7 @@
 import numpy as np
 
 from pyquantifier.plot import plot_stacked_frequency
-from pyquantifier.new_distributions import MixtureCUD
+from pyquantifier.distributions import MixtureCUD
 
 
 class IntrinsicPrevalenceEstimator:

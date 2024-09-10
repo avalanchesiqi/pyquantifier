@@ -1,5 +1,3 @@
-import uproot  # go up to the project root
-
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -7,9 +5,9 @@ import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
 from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
-from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
+from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
 
 
 # Item class

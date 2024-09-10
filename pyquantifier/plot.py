@@ -1,5 +1,3 @@
-import uproot  # go up to the project root
-
 import os
 import numpy as np
 from matplotlib import pyplot as plt
