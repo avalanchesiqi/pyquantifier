@@ -460,12 +460,12 @@ class Dataset:
             prevalence_estimator.set_positive_density(class_conditional_densities['pos'])
             prevalence_estimator.set_negativity_density(class_conditional_densities['neg'])
 
-            est_prev = prevalence_estimator.estimate(self.df['pos'].values)
+            est_prev = prevalence_estimator.estimate(self.df['p_pos'].values)
             return est_prev
 
     def extrinsic_estimate(self, calibration_curve: CalibrationCurve):
-        self.df['cali_pos'] = calibration_curve.get_calibrated_prob(self.df['p_pos'].values)
-        return self.df['cali_pos'].sum() / len(self.df)
+        self.df['calibr_pos'] = calibration_curve.get_calibrated_prob(self.df['p_pos'].values)
+        return self.df['calibr_pos'].sum() / len(self.df)
 
 
 # generate a unit test for the Dataset class
