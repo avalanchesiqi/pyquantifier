@@ -1,0 +1,25 @@
+[project]
+name = "pyquantifier"
+version = "0.0.1"
+authors = [
+  { name="Siqi Wu", email="swu2@iu.edu" },
+]
+description = "A Python package to estimate class prevalence in unlabeled datasets by specifying stability assumptions"
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["dependencies"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools]
+packages = ["pyquantifier", "pyquantifier.quantifier"]
+
+[project.urls]
+Homepage = "https://github.com/avalanchesiqi/pyquantifier"
+Issues = "https://github.com/avalanchesiqi/pyquantifier/issues"
