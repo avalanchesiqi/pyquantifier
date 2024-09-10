@@ -1,9 +1,11 @@
+import uproot  # go up to the project root
+
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 import numpy as np
 import matplotlib.pyplot as plt
-from pyquantifier.calibration_curve import CalibrationCurve, \
-    BinnedCalibrationCurve
+
+from pyquantifier.calibration_curve import CalibrationCurve, BinnedCalibrationCurve
 from pyquantifier.plot import *
 
 
@@ -130,7 +132,7 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
         ax.set_xlim(-0.1, 1.1)
         ax.set_ylim(-0.25, 0.6)
 
-        label_axis = sorted(self.labels)
+        label_axis = self.labels
         density_axis = np.array([self.get_density(label) for label in label_axis])
         data_cum = density_axis.cumsum(axis=0)
         color_axis = [ColorPalette[label] for label in label_axis]
@@ -143,11 +145,11 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
 
             # r, g, b, _ = color
             # text_color = 'white' if r * g * b < 0.5 else 'darkgrey'
-            ax.bar_label(rects, label_type='center', color='k', fmt='%.3f', size=14)
+            ax.bar_label(rects, label_type='center', color='k', fmt='%.2f', size=14)
 
-        # tick_positions = data_cum - density_axis / 2
-        # ax.set_xticks(tick_positions)
-        # ax.set_xticklabels(label_axis)
+        tick_positions = data_cum - density_axis / 2
+        ax.set_xticks(tick_positions)
+        ax.set_xticklabels(label_axis)
 
         # x_axis = np.arange(len(self.labels))
 
@@ -552,23 +554,41 @@ class JointDistribution:
         pass
 
     def plot_five_distributions(self, num_bin=1000):
+        """Plot the five distributions of a joint distribution.
+
+        Parameters
+        ----------
+        num_bin : int
+            Number of bins to use
+        """
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
+        bottom_line = None
+        top_y_axis = 0
         for label in self.labels:
-            self.class_conditional_densities[label].plot(ax=axes[0], num_bin=num_bin,
-                                                         color=ColorPalette[label])
+            bottom_line = self.class_conditional_densities[label].plot(ax=axes[0], 
+                                                                       num_bin=num_bin,
+                                                                       color=ColorPalette[label],
+                                                                       return_bottom=True)
+            top_y_axis = max(top_y_axis, np.max(bottom_line))
+        axes[0].set_ylim(top=top_y_axis)
         axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1])
+        axes[1].spines['left'].set_visible(False)
         axes[1].set_title('Label Density')
 
-        prev_bottom_axis = None
+        cum_bottom_line = None
         for label in self.labels:
             weight = self.label_distribution.get_density(label)
-            prev_bottom_axis = self.class_conditional_densities[label].plot(
-                ax=axes[2], num_bin=num_bin, color=ColorPalette[label], 
-                weight=weight, bottom_axis=prev_bottom_axis, return_bottom=True)
+            cum_bottom_line = self.class_conditional_densities[label].plot(ax=axes[2], 
+                                                                           num_bin=num_bin, 
+                                                                           color=ColorPalette[label], 
+                                                                           return_bottom=True, 
+                                                                           bottom_axis=cum_bottom_line,
+                                                                           weight=weight)
+        axes[2].set_ylim(top=np.max(cum_bottom_line))
         axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3], num_bin=num_bin)
@@ -587,6 +607,7 @@ class JointDistribution:
         plt.tight_layout()
         # #save plt as pdf
         # plt.savefig('five_distributions.pdf')
+        return axes
 
 
 class IntrinsicJointDistribution(JointDistribution):

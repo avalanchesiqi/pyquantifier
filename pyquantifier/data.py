@@ -1,21 +1,23 @@
+import uproot  # go up to the project root
+
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pyquantifier.plot import *
-
-from pyquantifier.distributions import BinnedDUD, BinnedCUD, ExtrinsicJointDistribution, IntrinsicJointDistribution
 from sklearn.linear_model import LogisticRegression
+import matplotlib.pyplot as plt
+
+from pyquantifier.distributions import BinnedDUD, BinnedCUD
 from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
 from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
+from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
 
 
 # Item class
 class Item:
-    def __init__(self, uid, labels, probs, gt_label=None, **feature_kwargs):
+    def __init__(self, uid, all_labels, all_probs, gt_label=None, **feature_kwargs):
         self.uid = uid
-        self.labels = labels
-        self.probs = np.array(probs) / np.sum(probs)  # normalize the probs
+        self.all_labels = all_labels
+        self.all_probs = np.array(all_probs) / np.sum(all_probs)  # normalize the probs
         self.gt_label = gt_label
         self.__dict__.update(feature_kwargs)
 
@@ -25,9 +27,9 @@ class Item:
     def prob_correct(self):
         # the probability of correct is the probability of gt_label
         if self.gt_label:
-            return self.probs[self.labels.index(self.gt_label)]
+            return self.all_probs[self.all_labels.index(self.gt_label)]
         else:
-            raise ValueError('gt_label is not set')
+            raise ValueError('gt_label is not set yet')
 
     def prob_incorrect(self):
         # the probability of incorrect is the probability of not gt_label
@@ -35,38 +37,40 @@ class Item:
 
     def to_row(self):
         # convert the item to a pandas Series
-        item_dict = {'uid': self.uid}
-        for label, prob in zip(self.labels, self.probs):
-            item_dict[label] = prob
+        item_dict = {'uid': self.uid, 'gt_label': self.gt_label}
+        for label, prob in zip(self.all_labels, self.all_probs):
+            item_dict[f'p_{label}'] = prob
         for feature, feature_val in self.__dict__.items():
-            if feature not in ['uid', 'labels', 'probs', 'gt_label']:
-                item_dict[feature] = feature_val
+            if feature not in ['uid', 'all_labels', 'all_probs', 'gt_label']:
+                item_dict[f'f_{feature}'] = feature_val
         return pd.Series(item_dict)
 
 
 # Dataset class
 class Dataset:
-    def __init__(self, labels, df=None, items=None, column_mapping=None):
+    def __init__(self, df=None, items=None, column_mapping=None):
         """Initialize a Dataset object.
 
         Parameters
         ----------
-        labels : list
-            A list of possible labels
         df : DataFrame
             A pandas DataFrame object
         items : list
             A list of Item objects
         """
-        self.labels = labels
+        assert df is not None or items is not None, 'either df or items must be provided'
+
         if df is not None:
             self.df = df
         elif items is not None:
             self.df = self.to_dataframe(items)
-        else:
-            raise ValueError('either df or items must be provided')
+
         if column_mapping is not None:
             self.df = self.df.rename(columns=column_mapping)
+
+        # infer all possible labels from dataframe header
+        self.labels = sorted([col[2:] for col in self.df.columns if col.startswith('p_')])
+
         self.label_distribution = None
         self.class_conditional_densities = None
         self.classifier_score_distribution = None
@@ -125,7 +129,7 @@ class Dataset:
         Dataset
             A new dataset object with n items
         """
-        return Dataset(df=self.df.sample(n, replace=replace), labels=self.labels)
+        return Dataset(df=self.df.sample(n, replace=replace))
     
     @staticmethod
     def _get_neyman_allocation(bin_dict, total_n):
@@ -166,7 +170,8 @@ class Dataset:
         DataFrame
             A pandas DataFrame object
         """
-        return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), replace=True)
+        return df.sample(n=int(bin_dict[df['bin'].iloc[0]]), 
+                         replace=True)
 
     def select_sample_for_annotation(self, n, strategy='random', bins=10):
         """Select n items from the dataset for annotation.
@@ -190,8 +195,13 @@ class Dataset:
             return self.sample(n), None
         elif strategy in ['uniform', 'neyman']:
             df = self.df.copy()
-            # create a new column based on the pos column
-            df['bin'] = df.apply(lambda row: get_bin_idx(row['pos'], size=bins), axis=1)
+
+            # to sample with uniform or neyman sampling, a column named p_pos is required
+            if 'p_pos' not in df.columns:
+                raise ValueError('a column named p_pos is required for uniform or neyman sampling')
+
+            # create a new column based on the p_pos column
+            df['bin'] = df.apply(lambda row: get_bin_idx(row['p_pos'], size=bins), axis=1)
             original_bin_dict = df['bin'].value_counts().to_dict()
             for i in range(bins):
                 if i not in original_bin_dict:
@@ -212,7 +222,7 @@ class Dataset:
             print('original_bin_dict', original_bin_dict)
             print('to_sample_bin_dict', to_sample_bin_dict)
             selection_weights = [to_sample_bin_dict[i] / original_bin_dict[i] for i in range(bins)]
-            return Dataset(df=df, labels=self.labels), selection_weights
+            return Dataset(df=df), selection_weights
         else:
             raise ValueError('unsupported sampling strategy, '
                             'options are random, uniform, or neyman.')
@@ -252,7 +262,9 @@ class Dataset:
             A BinnedDUD object
         """
         x_axis = get_binned_x_axis(num_bin)
-        y_axis, _ = np.histogram(self.df['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        y_axis, _ = np.histogram(self.df['p_pos'].tolist(), 
+                                 bins=np.linspace(0, 1, num_bin+1), 
+                                 density=True)
         return BinnedCUD(x_axis=x_axis, y_axis=y_axis)
 
     def infer_class_conditional_density(self, label, num_bin, selection_weights=None):
@@ -271,7 +283,9 @@ class Dataset:
             A BinnedDUD object
         """
         x_axis = get_binned_x_axis(num_bin)
-        y_axis, _ = np.histogram(self.df[self.df['gt_label'] == label]['pos'].tolist(), bins=np.linspace(0, 1, num_bin+1), density=True)
+        y_axis, _ = np.histogram(self.df[self.df['gt_label'] == label]['p_pos'].tolist(), 
+                                 bins=np.linspace(0, 1, num_bin+1), 
+                                 density=True)
         if selection_weights is not None:
             assert num_bin == len(selection_weights)
             selection_weights = np.array(selection_weights)
@@ -306,7 +320,7 @@ class Dataset:
             A CalibrationCurve object
         """
         if method == 'platt scaling':
-            train_CX = self.df['pos'].values.reshape(-1, 1)
+            train_CX = self.df['p_pos'].values.reshape(-1, 1)
             train_GT = self.df['gt_label'].map({'neg': 0, 'pos': 1}).values
             prob_cali_func = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
 
@@ -318,9 +332,10 @@ class Dataset:
         elif method == 'nonparametric binning':
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
-            # create a new column based on the pos column
-            df['bin'] = df.apply(lambda row: get_bin_idx(row['pos'], size=num_bin), axis=1)
-            y_axis = [len(df[(df['bin']==bin_idx) & (df['gt_label']=='pos')]) / len(df[df['bin']==bin_idx]) for bin_idx, _ in enumerate(x_axis)]
+            # create a new column based on the p_pos column
+            df['bin'] = df.apply(lambda row: get_bin_idx(row['p_pos'], size=num_bin), axis=1)
+            y_axis = [len(df[(df['bin']==bin_idx) & (df['gt_label']=='pos')]) / len(df[df['bin']==bin_idx]) 
+                      for bin_idx, _ in enumerate(x_axis)]
             prob_cali_obj = BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
             return prob_cali_obj
         else:
@@ -346,26 +361,37 @@ class Dataset:
         ----------
         num_bin : int
             Number of bins to use
+        selection_weights : list
+            A list of selection weights for each bin
         """
         fig, axes = plt.subplots(1, 5, figsize=(16, 3))
         axes = axes.ravel()
 
         self.update_dataset_model(num_bin=num_bin, selection_weights=selection_weights)
 
+        bottom_line = None
+        top_y_axis = 0
         for label in self.labels:
-            self.class_conditional_densities[label].plot(ax=axes[0], color=ColorPalette[label])
+            bottom_line = self.class_conditional_densities[label].plot(ax=axes[0], 
+                                                                       color=ColorPalette[label],
+                                                                       return_bottom=True)
+            top_y_axis = max(top_y_axis, np.max(bottom_line))
+        axes[0].set_ylim(top=top_y_axis)
         axes[0].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[1], ci=False)
         axes[1].spines['left'].set_visible(False)
         axes[1].set_title('Label Density')
 
-        prev_bottom = None
+        cum_bottom_line = None
         for label in self.labels:
             weight = self.label_distribution.get_density(label)
-            prev_bottom = self.class_conditional_densities[label].plot(
-                ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
-                return_bottom=True, weight=weight)
+            cum_bottom_line = self.class_conditional_densities[label].plot(ax=axes[2], 
+                                                                           color=ColorPalette[label], 
+                                                                           return_bottom=True, 
+                                                                           bottom_axis=cum_bottom_line, 
+                                                                           weight=weight)
+        axes[2].set_ylim(top=np.max(cum_bottom_line))
         axes[2].set_title('Joint Density')
 
         self.classifier_score_distribution.plot(ax=axes[3], density=True)
@@ -378,10 +404,6 @@ class Dataset:
             ax.spines['right'].set_visible(False)
             ax.spines['top'].set_visible(False)
             ax.tick_params(axis='both', which='major')
-            # ax.set_xticks([])
-            # ax.set_yticks([])
-            # ax.set_xlabel('')
-            # ax.set_ylabel('')
         
         plt.tight_layout()
         return axes
@@ -444,7 +466,7 @@ class Dataset:
             return est_prev
 
     def extrinsic_estimate(self, calibration_curve: CalibrationCurve):
-        self.df['cali_pos'] = calibration_curve.get_calibrated_prob(self.df['pos'].values)
+        self.df['cali_pos'] = calibration_curve.get_calibrated_prob(self.df['p_pos'].values)
         return self.df['cali_pos'].sum() / len(self.df)
 
 
@@ -452,30 +474,30 @@ class Dataset:
 def test_dataset():
     # create an item
     item1 = Item(uid='p1',
-                 labels=['pos', 'neg'],
-                 probs=[0.2, 0.8],
+                 all_labels=['pos', 'neg'],
+                 all_probs=[0.2, 0.8],
                  gender='female',
                  age='young')
 
     # create more items similar to item1
     item2 = Item(uid='p2',
-                 labels=['pos', 'neg'],
-                 probs=[0.3, 0.7],
+                 all_labels=['pos', 'neg'],
+                 all_probs=[0.3, 0.7],
                  gender='female',
                  age='old')
 
     item3 = Item(uid='p3',
-                 labels=['pos', 'neg'],
-                 probs=[0.9, 0.1],
+                 all_labels=['pos', 'neg'],
+                 all_probs=[0.9, 0.1],
                  gender='male',
                  age='old')
 
     # create a dataset
-    dataset = Dataset(labels=['pos', 'neg'], items=[item1, item2, item3])
+    dataset = Dataset(items=[item1, item2, item3])
     print(dataset.df)
 
     # test the dataset
-    assert dataset.df.shape == (3, 5)
+    assert dataset.df.shape == (3, 6)
 
 
 # run the unit test for Dataset class

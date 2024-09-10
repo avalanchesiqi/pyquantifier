@@ -1,11 +1,13 @@
+import uproot  # go up to the project root
+
 from abc import abstractmethod
 import numpy as np
 from matplotlib import pyplot as plt
 from collections.abc import Iterable
 from sklearn.linear_model import LogisticRegression
 
-from pyquantifier.util import get_bin_idx
 from pyquantifier.plot import *
+from pyquantifier.util import get_bin_idx
 
 
 class CalibrationCurve:

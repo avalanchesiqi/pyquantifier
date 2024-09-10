@@ -1,6 +1,9 @@
+import uproot  # go up to the project root
+
 import os
 import numpy as np
 from matplotlib import pyplot as plt
+
 from pyquantifier.conf import *
 
 
@@ -13,7 +16,6 @@ plt.rc('axes', labelsize=16)     # fontsize of the x and y labels
 plt.rc('xtick', labelsize=14)    # fontsize of the x tick labels
 plt.rc('ytick', labelsize=14)    # fontsize of the y tick labels
 plt.rc('legend', fontsize=14)    # fontsize of the legend
-
 
 # class ColorPalette:
 #     CC2 = ['#FFD662', '#00539C']
@@ -35,7 +37,7 @@ ColorPalette = {'pos': '#cc0000',
 
 def save_to_img(img_name):
     if img_name:
-        plt.savefig(os.path.join(img_folder, f'{img_name}.{img_kind}'),
+        plt.savefig(os.path.join(img_folder, img_name),
                     bbox_inches='tight')
 
 
@@ -118,7 +120,7 @@ def plot_stacked_frequency(x_axis, freq_hist, calibration_curve, ax=None, fig_na
     ax.set_ylim(ymin=0)
 
     if fig_name:
-        plt.savefig(f'{fig_name}.svg', bbox_inches='tight')
+        plt.savefig(fig_name, bbox_inches='tight')
 
 
 def plot_empirical_hist(data, **kwds):

@@ -1,7 +1,4 @@
-import os
 import numpy as np
-from matplotlib import pyplot as plt
-from pyquantifier.conf import *
 
 
 class DiscreteClassDensity:
