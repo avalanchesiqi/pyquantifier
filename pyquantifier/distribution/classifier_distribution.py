@@ -34,7 +34,7 @@ class ParametricClassifierDensity:
 
         rv_pdf = self.class_density.pdf(fine_axis)
         one_gradient_plot(ax, fine_axis, rv_pdf,
-                          color=ColorPalette['unknown'],
+                          color=ColorPalette.unknown,
                           **kwds)
 
         ax.set_xlabel('$C(X)$')

@@ -34,24 +34,11 @@ class CalibrationCurve:
         ax.fill_between(self.x_axis,
                         np.zeros(num_bin),
                         self.y_axis,
-                        facecolor=ColorPalette['pos'], alpha=alpha, lw=0)
+                        facecolor=ColorPalette.pos, alpha=alpha, lw=0)
         ax.fill_between(self.x_axis,
                         self.y_axis,
                         np.ones(num_bin),
-                        facecolor=ColorPalette['neg'], alpha=alpha, lw=0)
-
-        # for x, y in zip(self.x_axis, self.y_axis):
-        #     left_coord = x - bin_margin
-        #     right_coord = x + bin_margin
-
-        #     ax.fill_between([left_coord, right_coord],
-        #                     [0, 0],
-        #                     [y, y],
-        #                     facecolor=ColorPalette['pos'], alpha=x, lw=0)
-        #     ax.fill_between([left_coord, right_coord],
-        #                     [y, y],
-        #                     [1, 1],
-        #                     facecolor=ColorPalette['neg'], alpha=x, lw=0)
+                        facecolor=ColorPalette.neg, alpha=alpha, lw=0)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 

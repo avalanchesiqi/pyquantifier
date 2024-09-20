@@ -15,22 +15,13 @@ plt.rc('xtick', labelsize=14)    # fontsize of the x tick labels
 plt.rc('ytick', labelsize=14)    # fontsize of the y tick labels
 plt.rc('legend', fontsize=14)    # fontsize of the legend
 
-# class ColorPalette:
-#     CC2 = ['#FFD662', '#00539C']
-#     CC3 = ['#f6511d', '#ffb400', '#00a6ed']
-#     CC4 = ['#4486F4', '#1CA45C', '#FF9E0F', '#DA483B']
-#     unknown_color = '#333333'
-#     pos_color = '#00539C'
-#     neg_color = '#FFD662'
-
-ColorPalette = {'pos': '#00539C',
-                'neg': '#FFD662',
-                'unknown': '#333333'}
-
-
-ColorPalette = {'pos': '#cc0000',
-                'neg': '#c9daf8',
-                'unknown': '#333333'}
+class ColorPalette:
+    CC2 = ['#FFD662', '#00539C']
+    CC3 = ['#f6511d', '#ffb400', '#00a6ed']
+    CC4 = ['#4486F4', '#1CA45C', '#FF9E0F', '#DA483B']
+    pos = '#cc0000'
+    neg = '#c9daf8'
+    unknown = '#333333'
 
 
 def save_to_img(img_name):
@@ -54,7 +45,7 @@ def prepare_canvas():
 
 
 def one_gradient_plot(ax, x_axis, top_axis, bottom_axis=None, **kwds):
-    color = kwds.get('color', ColorPalette['unknown'])
+    color = kwds.get('color', ColorPalette.unknown)
     label = kwds.get('label', '')
     edge = kwds.get('edge', True)
     edge_color = kwds.get('edge_color', color)
@@ -109,9 +100,9 @@ def plot_stacked_frequency(x_axis, freq_hist, calibration_curve, ax=None, fig_na
     weighted_freq_hist = cali_prob_array * freq_hist
 
     one_gradient_plot(ax, x_axis, weighted_freq_hist,
-                      color=ColorPalette.two_color[0])
+                      color=ColorPalette.CC2[0])
     one_gradient_plot(ax, x_axis, freq_hist, bottom_axis=weighted_freq_hist,
-                      color=ColorPalette.two_color[1])
+                      color=ColorPalette.CC2[1])
 
     ax.set_xlabel('$C(X)$')
     ax.set_ylabel('freq')
@@ -139,7 +130,7 @@ def plot_empirical_hist(data, **kwds):
     ax = kwds.get('ax', None)
     if ax is None:
         ax = prepare_canvas()
-    color = kwds.get('color', ColorPalette['unknown'])
+    color = kwds.get('color', ColorPalette.unknown)
     density = kwds.get('density', False)
     ylabel = kwds.get('ylabel', 'frequency')
     img_name = kwds.get('img_name', None)
@@ -182,7 +173,7 @@ def plot_empirical_bar(data, **kwds):
     # if num_label == 2:
     #     color_palette = ColorPalette.CC2
 
-    ax.bar(x_axis, density_axis, width=0.7, color=[ColorPalette[k] for k in label_axis],
+    ax.bar(x_axis, density_axis, width=0.7, color=[getattr(ColorPalette, label) for label in label_axis],
            lw=2, edgecolor='k')
     ax.set_xticks(x_axis)
     ax.set_xticklabels(label_axis)

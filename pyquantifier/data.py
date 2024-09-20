@@ -371,7 +371,7 @@ class Dataset:
         top_y_axis = 0
         for label in self.labels:
             bottom_line = self.class_conditional_densities[label].plot(ax=axes[0], 
-                                                                       color=ColorPalette[label],
+                                                                       color=getattr(ColorPalette, label),
                                                                        return_bottom=True)
             top_y_axis = max(top_y_axis, np.max(bottom_line))
         axes[0].set_ylim(top=top_y_axis)
@@ -385,7 +385,7 @@ class Dataset:
         for label in self.labels:
             weight = self.label_distribution.get_density(label)
             cum_bottom_line = self.class_conditional_densities[label].plot(ax=axes[2], 
-                                                                           color=ColorPalette[label], 
+                                                                           color=getattr(ColorPalette, label), 
                                                                            return_bottom=True, 
                                                                            bottom_axis=cum_bottom_line, 
                                                                            weight=weight)
@@ -420,7 +420,7 @@ class Dataset:
         self.update_dataset_model(num_bin=num_bin, selection_weights=selection_weights)
 
         for label in self.labels:
-            self.class_conditional_densities[label].plot(ax=axes[3], color=ColorPalette[label])
+            self.class_conditional_densities[label].plot(ax=axes[3], color=getattr(ColorPalette, label))
         axes[3].set_title('Class Conditional Densities')
 
         self.label_distribution.plot(ax=axes[4], ci=False)
@@ -431,7 +431,7 @@ class Dataset:
         for label in self.labels:
             weight = self.label_distribution.get_density(label)
             prev_bottom = self.class_conditional_densities[label].plot(
-                ax=axes[2], bottom_axis=prev_bottom, color=ColorPalette[label], 
+                ax=axes[2], bottom_axis=prev_bottom, color=getattr(ColorPalette, label), 
                 return_bottom=True, weight=weight)
         axes[2].set_title('Joint Density')
 

@@ -131,15 +131,16 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
         ax.set_ylim(-0.25, 0.6)
 
         label_axis = self.labels
+        num_class = len(label_axis)
         density_axis = np.array([self.get_density(label) for label in label_axis])
         data_cum = density_axis.cumsum(axis=0)
-        color_axis = [ColorPalette[label] for label in label_axis]
+        color_axis = eval(f'ColorPalette.CC{num_class}')
 
-        for i, color in enumerate(color_axis):
+        for i, label in enumerate(label_axis):
             widths = density_axis[i]
             starts = data_cum[i] - widths
             rects = ax.barh(0, widths, left=starts, height=0.4, align='center',
-                            color=color, alpha=1, lw=2, edgecolor='k')
+                            color=color_axis[i], alpha=1, lw=2, edgecolor='k')
 
             # r, g, b, _ = color
             # text_color = 'white' if r * g * b < 0.5 else 'darkgrey'
@@ -567,7 +568,7 @@ class JointDistribution:
         for label in self.labels:
             bottom_line = self.class_conditional_densities[label].plot(ax=axes[0], 
                                                                        num_bin=num_bin,
-                                                                       color=ColorPalette[label],
+                                                                       color=getattr(ColorPalette, label),
                                                                        return_bottom=True)
             top_y_axis = max(top_y_axis, np.max(bottom_line))
         axes[0].set_ylim(top=top_y_axis)
@@ -582,7 +583,7 @@ class JointDistribution:
             weight = self.label_distribution.get_density(label)
             cum_bottom_line = self.class_conditional_densities[label].plot(ax=axes[2], 
                                                                            num_bin=num_bin, 
-                                                                           color=ColorPalette[label], 
+                                                                           color=getattr(ColorPalette, label), 
                                                                            return_bottom=True, 
                                                                            bottom_axis=cum_bottom_line,
                                                                            weight=weight)

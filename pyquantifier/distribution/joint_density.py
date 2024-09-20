@@ -38,18 +38,18 @@ class EmpiricalJointDistribution:
         img_name = kwds.get('img_name', None)
 
         prev_hist = np.zeros(num_coarse_bin)
-        for color_idx, (class_name, cxs) in enumerate(
+        for color_idx, (label, cxs) in enumerate(
                 self.class_conditional_densities.class_densities.items()):
             hist, _ = np.histogram(cxs, bins=coarse_axis)
             if color_idx == self.num_class - 1:
                 one_gradient_plot(ax, shift_axis(coarse_axis), hist + prev_hist,
                                   bottom_axis=prev_hist,
-                                  color=ColorPalette[class_name],
-                                  edge_color=ColorPalette['unknown'])
+                                  color=getattr(ColorPalette, label),
+                                  edge_color=ColorPalette.unknown)
             else:
                 one_gradient_plot(ax, shift_axis(coarse_axis), hist + prev_hist,
                                   bottom_axis=prev_hist,
-                                  color=ColorPalette[class_name],
+                                  color=getattr(ColorPalette, label),
                                   edge=False)
             prev_hist += hist
 
