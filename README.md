@@ -14,6 +14,12 @@ python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
+### Build and install Python package
+```bash
+python3 -m build
+python3 -m pip install --force-reinstall dist/pyquantifier-0.0.1-py3-none-any.whl
+```
+
 ## Tutorial Jupyter Notebooks
 The tutorial includes four sections:
 1. [Generating representations of joint distributions](/icwsm_tutorial/1-Generate-Joint-Distribution.ipynb)
