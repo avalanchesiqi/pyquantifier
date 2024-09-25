@@ -136,7 +136,6 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
         data_cum = density_axis.cumsum(axis=0)
         if hasattr(ColorPalette, label_axis[0]):
             color_axis = [getattr(ColorPalette, label) for label in label_axis]
-            print("ColorPalette has an attribute 'pos'")
         else:
             color_axis = eval(f'ColorPalette.CC{num_class}')
 
