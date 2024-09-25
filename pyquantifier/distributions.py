@@ -134,7 +134,12 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
         num_class = len(label_axis)
         density_axis = np.array([self.get_density(label) for label in label_axis])
         data_cum = density_axis.cumsum(axis=0)
-        color_axis = eval(f'ColorPalette.CC{num_class}')
+        if hasattr(ColorPalette, label_axis[0]):
+            color_axis = [getattr(ColorPalette, label) for label in label_axis]
+            print("ColorPalette has an attribute 'pos'")
+        else:
+            color_axis = eval(f'ColorPalette.CC{num_class}')
+
 
         for i, label in enumerate(label_axis):
             widths = density_axis[i]
