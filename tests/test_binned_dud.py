@@ -20,7 +20,8 @@ class TestBinnedDudDensity(unittest.TestCase):
                     self.assertAlmostEqual(dud.get_density(label), 
                                            density, 
                                            places=3, 
-                                           msg=f'Test failed: density of label "{label}" does not match expected result')
+                                           msg=f'Test failed: density of label "{label}" does not match expected result'
+                                           )
 
 
 if __name__ == "__main__":

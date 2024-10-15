@@ -25,7 +25,8 @@ class TestGetNeymanAllocation(unittest.TestCase):
             with self.subTest(msg=f'Checking case number {case_num+1}'):
                 self.assertDictEqual(result, 
                                      expected_dist, 
-                                     msg='Test failed: output of Neyman allocation does not match expected result')
+                                     msg='Test failed: output of Neyman allocation does not match expected result'
+                                     )
 
 
 if __name__ == "__main__":
