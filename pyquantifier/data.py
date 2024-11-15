@@ -217,8 +217,8 @@ class Dataset:
             # drop the bin column
             df = df.drop(columns=['bin'])
 
-            print('original_bin_dict', original_bin_dict)
-            print('to_sample_bin_dict', to_sample_bin_dict)
+            # print('original_bin_dict', original_bin_dict)
+            # print('to_sample_bin_dict', to_sample_bin_dict)
             selection_weights = [to_sample_bin_dict[i] / original_bin_dict[i] for i in range(bins)]
             return Dataset(df=df), selection_weights
         else:

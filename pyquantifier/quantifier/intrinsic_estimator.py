@@ -55,7 +55,7 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
     def estimate(self, cx_array):
         if isinstance(cx_array, list) or isinstance(cx_array, np.ndarray):
             num_bin = self.positivity_density.num_bin
-            cx_hist, _ = np.histogram(cx_array, num_bin, density=True)
+            cx_hist, _ = np.histogram(cx_array, bins=np.linspace(0, 1, num_bin+1), density=True)
         elif isinstance(cx_array, MixtureCUD):
             num_bin = cx_array.num_bin
             cx_hist = cx_array.y_axis
@@ -71,9 +71,10 @@ class MixtureModelEstimator(IntrinsicPrevalenceEstimator):
         # print(positive_shape)
         # print(negative_shape)
 
-        for p_p in np.arange(0, 1.01, 0.01):
+        for p_p in np.arange(0, 1.001, 0.001):
             dist = self.hellinger(cx_hist, 
                                   positive_shape * p_p + negative_shape * (1 - p_p))
+            # print(f'{p_p=:.3f} {dist=:.3f}')
             if dist < min_dist:
                 min_dist = dist
                 best_p_p = p_p
