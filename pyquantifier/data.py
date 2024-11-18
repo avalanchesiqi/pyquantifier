@@ -7,7 +7,7 @@ from pyquantifier.distributions import BinnedDUD, BinnedCUD
 from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve, PiecewiseLinearCalibrationCurve
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
-from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
+from pyquantifier.estimator import MixtureModelEstimator
 
 
 # Item class
@@ -217,8 +217,8 @@ class Dataset:
             # drop the bin column
             df = df.drop(columns=['bin'])
 
-            print('original_bin_dict', original_bin_dict)
-            print('to_sample_bin_dict', to_sample_bin_dict)
+            # print('original_bin_dict', original_bin_dict)
+            # print('to_sample_bin_dict', to_sample_bin_dict)
             selection_weights = [to_sample_bin_dict[i] / original_bin_dict[i] for i in range(bins)]
             return Dataset(df=df), selection_weights
         else:

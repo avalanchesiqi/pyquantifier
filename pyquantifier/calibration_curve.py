@@ -28,17 +28,8 @@ class CalibrationCurve:
         alpha = kwds.pop('alpha', 1)
 
         num_bin = len(self.x_axis)
-        bin_width = 1 / num_bin
-        bin_margin = bin_width / 2
-
-        ax.fill_between(self.x_axis,
-                        np.zeros(num_bin),
-                        self.y_axis,
-                        facecolor=ColorPalette.pos, alpha=alpha, lw=0)
-        ax.fill_between(self.x_axis,
-                        self.y_axis,
-                        np.ones(num_bin),
-                        facecolor=ColorPalette.neg, alpha=alpha, lw=0)
+        one_gradient_plot(ax, self.x_axis, self.y_axis, color=ColorPalette.pos, edge_color='k')
+        one_gradient_plot(ax, self.x_axis, top_axis=np.ones(num_bin), bottom_axis=self.y_axis, color=ColorPalette.neg, edge=False)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 
@@ -47,13 +38,8 @@ class CalibrationCurve:
 
         ax.set_xlabel('$C(x)$')
         ax.set_ylabel('$P(y=1|C(x))$')
-        # ax.set_yticks([0, 0.5, 1])
         ax.set_xlim(xmin=0)
         ax.set_ylim(ymin=0)
-        # ax.set_xticks([])
-        # ax.set_yticks([])
-        # ax.set_xlabel('')
-        # ax.set_ylabel('')
 
 
 class BinnedCalibrationCurve(CalibrationCurve):
@@ -175,7 +161,7 @@ class PlattScaling(CalibrationCurve):
         self.lr_regressor.coef_ = np.array([[w]])
         self.lr_regressor.intercept_ = np.array([b])
         self.lr_regressor.classes_ = np.array([0, 1])
-        self.x_axis = np.linspace(0, 1, 101)
+        self.x_axis = np.arange(0.5/100, 1, 1/100)
         self.y_axis = self.get_calibrated_prob(self.x_axis)
 
     def get_params(self):

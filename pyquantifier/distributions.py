@@ -148,7 +148,7 @@ class DiscreteUnivariateDistribution(UnivariateDistribution):
 
             # r, g, b, _ = color
             # text_color = 'white' if r * g * b < 0.5 else 'darkgrey'
-            ax.bar_label(rects, label_type='center', color='k', fmt='%.2f', size=14)
+            ax.bar_label(rects, label_type='center', color='k', fmt='%.3f', size=14)
 
         tick_positions = data_cum - density_axis / 2
         ax.set_xticks(tick_positions)
@@ -673,8 +673,8 @@ class ExtrinsicJointDistribution(JointDistribution):
         return MultinomialDUD(['neg', 'pos'], np.array([area_neg, area_pos]))
 
     def calculate_class_conditional_densities(self, num_bin):
-        # x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
-        x_axis = np.linspace(0, 1, num_bin+1)
+        x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
+        # x_axis = np.linspace(0, 1, num_bin+1)
         curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
