@@ -28,8 +28,8 @@ class CalibrationCurve:
         alpha = kwds.pop('alpha', 1)
 
         num_bin = len(self.x_axis)
-        one_gradient_plot(ax, self.x_axis, self.y_axis, color=ColorPalette.pos)
-        one_gradient_plot(ax, self.x_axis, top_axis=np.ones(num_bin), bottom_axis=self.y_axis, color=ColorPalette.neg)
+        one_gradient_plot(ax, self.x_axis, self.y_axis, color=ColorPalette.pos, edge_color='k')
+        one_gradient_plot(ax, self.x_axis, top_axis=np.ones(num_bin), bottom_axis=self.y_axis, color=ColorPalette.neg, edge=False)
 
         ax.plot(self.x_axis, self.y_axis, 'k-', lw=2)
 

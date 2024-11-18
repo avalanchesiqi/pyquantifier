@@ -7,7 +7,7 @@ from pyquantifier.distributions import BinnedDUD, BinnedCUD
 from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
-from pyquantifier.quantifier.intrinsic_estimator import MixtureModelEstimator
+from pyquantifier.estimator import MixtureModelEstimator
 
 
 # Item class
