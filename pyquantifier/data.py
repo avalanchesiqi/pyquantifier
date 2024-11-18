@@ -4,7 +4,7 @@ from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
-from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve
+from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve, PiecewiseLinearCalibrationCurve
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
 from pyquantifier.estimator import MixtureModelEstimator
@@ -327,18 +327,36 @@ class Dataset:
             return prob_cali_obj
         elif method == 'temperature scaling':
             pass
-        elif method == 'nonparametric binning':
+        elif method in ['nonparametric binning', 'piecewise linear', 'adjusted piecewise linear']:
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
             # create a new column based on the p_pos column
             df['bin'] = df.apply(lambda row: get_bin_idx(row['p_pos'], size=num_bin), axis=1)
-            y_axis = [len(df[(df['bin']==bin_idx) & (df['gt_label']=='pos')]) / len(df[df['bin']==bin_idx]) 
+            # Calculate fraction postitive for each bin
+            y_axis = [len(df[(df['bin'] == bin_idx) & (df['gt_label'] == 'pos')]) / len(df[df['bin'] == bin_idx]) 
                       for bin_idx, _ in enumerate(x_axis)]
-            prob_cali_obj = BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
+            
+            if method == 'nonparametric binning':
+                prob_cali_obj = BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
+            elif method == 'piecewise linear':
+                prob_cali_obj = PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=x_axis.copy())         
+
+            elif method == 'adjusted piecewise linear':
+                # Initialize bin_centroids with x_axis values, which are midpoints of the bins
+                bin_means = x_axis.copy()
+                
+                # Ensure 'bin' is not both an index level and a column label
+                df = df.reset_index(drop=True)
+                # Calculate mean p_pos for each bin that has data
+                for bin_idx, mean in df.groupby('bin')['p_pos'].mean().items():
+                    bin_means[bin_idx] = mean
+
+                prob_cali_obj = PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=bin_means)
+
             return prob_cali_obj
         else:
-            raise ValueError('unsupported calibration method, '
-                            'options are platt scaling, temperature scaling, or nonparametric binning.')
+            raise ValueError(f'unsupported calibration method, {method}, '
+                            'options are platt scaling, nonparametric binning, piecewise linear, and adjusted piecewise linear.')
     
     # def infer_joint_density(self):
     #     """Infer the joint density of the dataset.
