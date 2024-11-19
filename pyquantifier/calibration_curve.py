@@ -169,3 +169,19 @@ class PlattScaling(CalibrationCurve):
 
     def get_calibrated_prob(self, cxs):
         return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
+    
+class IsotonicRegressionCalibrationCurve(BinnedCalibrationCurve):
+    def __init__(self, x_axis, y_axis):
+        self.x_axis = x_axis
+        self.y_axis = y_axis
+
+    def get_calibrated_prob(self, cxs):
+        def get_calibrated_value(score):
+            # find the nearest x_axis value below score (or the first x_axis value)
+            indx = np.searchsorted(self.x_axis, score, side='right') - 1
+            # Ensure indx is within the valid range
+            if indx < 0:
+                indx = 0
+            return self.y_axis[indx]
+
+        return np.array([get_calibrated_value(score) for score in cxs])

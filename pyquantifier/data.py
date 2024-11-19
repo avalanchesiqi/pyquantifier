@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
+from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
-from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve, PiecewiseLinearCalibrationCurve
+from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve, PiecewiseLinearCalibrationCurve, IsotonicRegressionCalibrationCurve
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
 from pyquantifier.estimator import MixtureModelEstimator
@@ -327,6 +328,22 @@ class Dataset:
             return prob_cali_obj
         elif method == 'temperature scaling':
             pass
+        elif method == 'isotonic regression':
+            train_CX = self.df['p_pos'].values
+            train_GT = self.df['gt_label'].map({'neg': 0, 'pos': 1}).values
+
+            # Sort the train_CX and train_GT arrays
+            sorted_indices = np.argsort(train_CX)
+            sorted_train_CX = train_CX[sorted_indices]
+            sorted_train_GT = train_GT[sorted_indices]
+
+            # Fit isotonic regression model
+            ir = IsotonicRegression(out_of_bounds='clip')
+            y_axis = ir.fit_transform(sorted_train_CX, sorted_train_GT)
+
+            prob_cali_obj = IsotonicRegressionCalibrationCurve(x_axis=sorted_train_CX, y_axis=y_axis)
+            return prob_cali_obj
+        
         elif method in ['nonparametric binning', 'piecewise linear', 'adjusted piecewise linear']:
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
