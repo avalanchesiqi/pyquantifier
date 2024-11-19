@@ -318,32 +318,27 @@ class Dataset:
         CalibrationCurve
             A CalibrationCurve object
         """
-        if method == 'platt scaling':
+        if method in ['platt scaling', 'temperature scaling', 'isotonic regression']:
             train_CX = self.df['p_pos'].values.reshape(-1, 1)
             train_GT = self.df['gt_label'].map({'neg': 0, 'pos': 1}).values
-            prob_cali_func = LogisticRegression(solver='lbfgs', fit_intercept=True).fit(train_CX, train_GT)
 
-            prob_cali_obj = PlattScaling()
-            prob_cali_obj.set_params(prob_cali_func.coef_, prob_cali_func.intercept_)
-            return prob_cali_obj
-        elif method == 'temperature scaling':
-            pass
-        elif method == 'isotonic regression':
-            train_CX = self.df['p_pos'].values
-            train_GT = self.df['gt_label'].map({'neg': 0, 'pos': 1}).values
+            if method == 'platt scaling':
+                model = LogisticRegression(solver='lbfgs', fit_intercept=True)
+            elif method == 'isotonic regression':
+                model = IsotonicRegression(out_of_bounds='clip')
+            
+            model.fit(train_CX, train_GT)
 
-            # Sort the train_CX and train_GT arrays
-            sorted_indices = np.argsort(train_CX)
-            sorted_train_CX = train_CX[sorted_indices]
-            sorted_train_GT = train_GT[sorted_indices]
+            x_axis = np.arange(0.5/100, 1, 1/100)
 
-            # Fit isotonic regression model
-            ir = IsotonicRegression(out_of_bounds='clip')
-            y_axis = ir.fit_transform(sorted_train_CX, sorted_train_GT)
-
-            prob_cali_obj = IsotonicRegressionCalibrationCurve(x_axis=sorted_train_CX, y_axis=y_axis)
-            return prob_cali_obj
-        
+            if method == 'platt scaling':
+                y_axis = model.predict_proba(x_axis.reshape(-1, 1))[:, 1]
+                return PlattScaling(x_axis=x_axis, y_axis=y_axis)
+            elif method == 'isotonic regression':
+                y_axis = model.predict(x_axis)
+                return IsotonicRegressionCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
+            else:
+                pass
         elif method in ['nonparametric binning', 'piecewise linear', 'adjusted piecewise linear']:
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()

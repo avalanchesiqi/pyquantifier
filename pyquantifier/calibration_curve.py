@@ -1,7 +1,6 @@
 from abc import abstractmethod
 import numpy as np
 from collections.abc import Iterable
-from sklearn.linear_model import LogisticRegression
 
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx
@@ -11,13 +10,20 @@ class CalibrationCurve:
     """
     A calibration curve.
     """
-    def __init__(self):
-        self.x_axis = None
-        self.y_axis = None
+    def __init__(self, x_axis, y_axis):
+        self.x_axis = x_axis
+        self.y_axis = y_axis
 
-    @abstractmethod
-    def get_calibrated_prob(self):
-        pass
+    def get_calibrated_prob(self, cxs):
+        def get_calibrated_value(score):
+            # find the nearest x_axis value below score (or the first x_axis value)
+            indx = np.searchsorted(self.x_axis, score, side='right') - 1
+            # Ensure indx is within the valid range
+            if indx < 0:
+                indx = 0
+            return self.y_axis[indx]
+
+        return np.array([get_calibrated_value(score) for score in cxs])
 
     def plot(self, **kwds):
         ax = kwds.pop('ax', None)
@@ -153,35 +159,15 @@ class PlattScaling(CalibrationCurve):
     A logistic calibration curve. Set parameters directly
     """
 
-    def __init__(self):
-        super().__init__()
-        self.lr_regressor = LogisticRegression()
-
-    def set_params(self, w, b):
-        self.lr_regressor.coef_ = np.array([[w]])
-        self.lr_regressor.intercept_ = np.array([b])
-        self.lr_regressor.classes_ = np.array([0, 1])
-        self.x_axis = np.arange(0.5/100, 1, 1/100)
-        self.y_axis = self.get_calibrated_prob(self.x_axis)
-
-    def get_params(self):
-        return self.lr_regressor.coef_, self.lr_regressor.intercept_
-
-    def get_calibrated_prob(self, cxs):
-        return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
-    
-class IsotonicRegressionCalibrationCurve(BinnedCalibrationCurve):
     def __init__(self, x_axis, y_axis):
-        self.x_axis = x_axis
-        self.y_axis = y_axis
+        super().__init__(x_axis, y_axis)
 
-    def get_calibrated_prob(self, cxs):
-        def get_calibrated_value(score):
-            # find the nearest x_axis value below score (or the first x_axis value)
-            indx = np.searchsorted(self.x_axis, score, side='right') - 1
-            # Ensure indx is within the valid range
-            if indx < 0:
-                indx = 0
-            return self.y_axis[indx]
+    # def get_params(self):
+    #     return self.lr_regressor.coef_, self.lr_regressor.intercept_
 
-        return np.array([get_calibrated_value(score) for score in cxs])
+    # def get_calibrated_prob(self, cxs):
+    #     return self.lr_regressor.predict_proba(cxs.reshape(-1, 1))[:, 1]
+    
+class IsotonicRegressionCalibrationCurve(CalibrationCurve):
+    def __init__(self, x_axis, y_axis):
+        super().__init__(x_axis, y_axis)
