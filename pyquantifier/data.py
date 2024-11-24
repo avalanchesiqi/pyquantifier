@@ -324,6 +324,8 @@ class Dataset:
 
             if method == 'platt scaling':
                 model = LogisticRegression(solver='lbfgs', fit_intercept=True)
+            elif method == 'temperature scaling':
+                pass
             elif method == 'isotonic regression':
                 model = IsotonicRegression(out_of_bounds='clip')
             
@@ -332,14 +334,12 @@ class Dataset:
             x_axis = np.arange(0.5/100, 1, 1/100)
 
             if method == 'platt scaling':
-                y_axis = model.predict_proba(x_axis.reshape(-1, 1))[:, 1]
-                return PlattScaling(x_axis=x_axis, y_axis=y_axis)
+                return PlattScaling(model=model)
             elif method == 'isotonic regression':
-                y_axis = model.predict(x_axis)
-                return IsotonicRegressionCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
+                return IsotonicRegressionCalibrationCurve(model=model)
             else:
                 pass
-        elif method in ['nonparametric binning', 'piecewise linear', 'adjusted piecewise linear']:
+        elif method in ['nonparametric binning', 'mid piecewise linear', 'mean piecewise linear']:
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
             # create a new column based on the p_pos column
@@ -349,12 +349,11 @@ class Dataset:
                       for bin_idx, _ in enumerate(x_axis)]
             
             if method == 'nonparametric binning':
-                prob_cali_obj = BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
-            elif method == 'piecewise linear':
-                prob_cali_obj = PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=x_axis.copy())         
-
-            elif method == 'adjusted piecewise linear':
-                # Initialize bin_centroids with x_axis values, which are midpoints of the bins
+                return BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
+            elif method == 'mid piecewise linear':
+                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=x_axis.copy())         
+            elif method == 'mean piecewise linear':
+                # Initialize bin_centroids with x_axis values, which are means of the bins
                 bin_means = x_axis.copy()
                 
                 # Ensure 'bin' is not both an index level and a column label
@@ -363,12 +362,12 @@ class Dataset:
                 for bin_idx, mean in df.groupby('bin')['p_pos'].mean().items():
                     bin_means[bin_idx] = mean
 
-                prob_cali_obj = PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=bin_means)
+                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=bin_means)
 
-            return prob_cali_obj
         else:
             raise ValueError(f'unsupported calibration method, {method}, '
-                            'options are platt scaling, nonparametric binning, piecewise linear, and adjusted piecewise linear.')
+                             f'options are `nonparametric binning`, `mid piecewise linear`, `mean piecewise linear`, '
+                             f'`platt scaling`, `temperature scaling`, `isotonic regression`.')
     
     # def infer_joint_density(self):
     #     """Infer the joint density of the dataset.
