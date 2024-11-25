@@ -2,10 +2,14 @@ import numpy as np
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import KFold
+from sklearn.metrics import accuracy_score
+from scipy.special import softmax
 import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
-from pyquantifier.calibration_curve import PlattScaling, BinnedCalibrationCurve, CalibrationCurve, PiecewiseLinearCalibrationCurve, IsotonicRegressionCalibrationCurve
+from pyquantifier.calibration_curve import CalibrationCurve, PlattScaling, TemperatureScaling, \
+    IsotonicRegressionCalibrationCurve, BinnedCalibrationCurve, PiecewiseLinearCalibrationCurve
 from pyquantifier.plot import *
 from pyquantifier.util import get_bin_idx, get_binned_x_axis
 from pyquantifier.estimator import MixtureModelEstimator
@@ -322,20 +326,89 @@ class Dataset:
             train_CX = self.df['p_pos'].values.reshape(-1, 1)
             train_GT = self.df['gt_label'].map({'neg': 0, 'pos': 1}).values
 
+            k = 5
+            kf = KFold(n_splits=k, shuffle=True, random_state=547)
+
             if method == 'platt scaling':
-                model = LogisticRegression(solver='lbfgs', fit_intercept=True)
+                # find the c value with the highest average accuracy
+                best_c = None
+                best_avg_acc = 0
+
+                for c in [0.01, 0.1, 1, 10, 100]:
+                    model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=c)
+                    acc_scores = []
+                    for train_index, test_index in kf.split(train_CX):
+                        X_train, X_test = train_CX[train_index], train_CX[test_index]
+                        y_train, y_test = train_GT[train_index], train_GT[test_index]
+
+                        model.fit(X_train, y_train)
+                        predictions = model.predict(X_test)
+                        acc = accuracy_score(y_test, predictions)
+                        acc_scores.append(acc)
+
+                    avg_acc = sum(acc_scores) / k
+                    if avg_acc > best_avg_acc:
+                        best_c = c
+                        best_avg_acc = avg_acc
+                    print('Accuracy of each fold:', acc_scores)
+                    print(f'c={c}, avg_acc={avg_acc}')
+                
+                print(f'best_c={best_c}, best_avg_acc={best_avg_acc}')
+                best_model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=best_c)
+                best_model.fit(train_CX, train_GT)
+                return PlattScaling(model=best_model)
             elif method == 'temperature scaling':
-                pass
+                # find the temperature value with the highest average accuracy
+                best_temperature = None
+                best_nll = float('inf')
+                nll_scores = []
+
+                def _get_logits(X):
+                    X = X + 1e-10
+                    X /= np.sum(X, axis=-1, keepdims=True)
+                    return np.log(X)
+
+                def nll_loss(logits, labels, temperature):
+                    scaled_logits = logits / temperature
+                    if scaled_logits.ndim == 1:
+                        probs = 1 / (1 + np.exp(-scaled_logits))  # Sigmoid for binary classification
+                        nll = -np.mean(labels * np.log(probs) + (1 - labels) * np.log(1 - probs))
+                    else:
+                        probs = softmax(scaled_logits, axis=1)  # Softmax for multi-class classification
+                        nll = -np.mean(np.log(probs[np.arange(len(labels)), labels]))
+                    return nll
+
+                train_CX = self.df['p_pos'].values
+                train_CX_neg = 1 - train_CX
+
+                # concatenate x_axis and x_axis2 into a 100 x 2 array
+                train_CX = np.vstack((train_CX, train_CX_neg)).T
+                # train_logits = _get_logits(train_CX)
+
+                for train_index, test_index in kf.split(train_CX):
+                    model = TemperatureScaling(temperature=1)
+                    X_train, X_test = train_CX[train_index], train_CX[test_index]
+                    y_train, y_test = train_GT[train_index], train_GT[test_index]
+
+                    model.fit(X_train, y_train)
+                    nll = nll_loss(X_test, y_test, model.get_temperature())
+                    nll_scores.append(nll)
+
+                    print(X_train[:10])
+                    print(y_train[:10])
+                    print(model.get_temperature())
+                    print(nll)
+
+                    if nll < best_nll:
+                        best_temperature = model.get_temperature()
+                        best_nll = nll
+
+                print(f'best_temperature={best_temperature}, best_nll={best_nll}')
+                model = TemperatureScaling(temperature=best_temperature)
+                return model
             elif method == 'isotonic regression':
                 model = IsotonicRegression(out_of_bounds='clip')
-            
-            model.fit(train_CX, train_GT)
-
-            x_axis = np.arange(0.5/100, 1, 1/100)
-
-            if method == 'platt scaling':
-                return PlattScaling(model=model)
-            elif method == 'isotonic regression':
+                model.fit(train_CX, train_GT)
                 return IsotonicRegressionCalibrationCurve(model=model)
             else:
                 pass

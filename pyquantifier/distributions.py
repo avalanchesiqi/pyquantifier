@@ -556,7 +556,7 @@ class JointDistribution:
     def get_density(self):
         pass
 
-    def plot_five_distributions(self, num_bin=1000):
+    def plot_five_distributions(self, num_bin=100):
         """Plot the five distributions of a joint distribution.
 
         Parameters

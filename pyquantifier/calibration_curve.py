@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.optimize import minimize
+from scipy.special import softmax
 
 from pyquantifier.plot import ColorPalette, prepare_canvas
 from pyquantifier.util import get_bin_idx
@@ -132,11 +134,64 @@ class PlattScaling(CalibrationCurve):
         return self.model.predict_proba(cxs.reshape(-1, 1))[:, 1]
 
 
+class TemperatureScaling(CalibrationCurve):
+    """
+    A logistic calibration curve
+    """
+    def __init__(self, temperature):
+        self.temperature = temperature
+        super().__init__()
+    
+    def get_temperature(self):
+        return self.temperature
+    
+    def _get_logits(self, X):
+        X = X + 1e-10
+        X /= np.sum(X, axis=-1, keepdims=True)
+        return np.log(X)
+    
+    def fit(self, X, labels):
+        # Ensure logits and labels are numpy arrays
+        logits = np.array(self._get_logits(X))
+        labels = np.array(labels)
+
+        # Define the loss function (negative log-likelihood)
+        def nll_loss(temperature):
+            scaled_logits = logits / temperature
+            if scaled_logits.ndim == 1:
+                probs = 1 / (1 + np.exp(-scaled_logits))  # Sigmoid for binary classification
+                nll = -np.mean(labels * np.log(probs) + (1 - labels) * np.log(1 - probs))
+            else:
+                probs = softmax(scaled_logits, axis=1)  # Softmax for multi-class classification
+                nll = -np.mean(np.log(probs[np.arange(len(labels)), labels]))
+            return nll
+
+        # Optimize the temperature parameter
+        result = minimize(nll_loss, self.temperature, bounds=[(0.1, 10)])
+        self.temperature = result.x[0]
+
+    def transform(self, logits):
+        # Apply temperature scaling
+        return logits / self.temperature
+
+    def get_calibrated_prob(self, X):
+        # Apply temperature scaling and softmax or sigmoid
+        X_neg = 1 - X
+
+        # concatenate x_axis and x_axis2 into a 100 x 2 array
+        X = np.vstack((X, X_neg)).T
+        logits = np.array(self._get_logits(X))
+        scaled_logits = self.transform(logits)
+        if scaled_logits.ndim == 1:
+            return 1 / (1 + np.exp(-scaled_logits))[:, 0]  # Sigmoid for binary classification
+        else:
+            return softmax(scaled_logits, axis=1)[:, 0]  # Softmax for multi-class classification
+
+
 class IsotonicRegressionCalibrationCurve(CalibrationCurve):
     def __init__(self, model):
         self.model = model
         super().__init__()
 
     def get_calibrated_prob(self, cxs):
-        # print(self.model.predict(cxs))
         return self.model.predict(cxs)
