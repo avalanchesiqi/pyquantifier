@@ -33,6 +33,9 @@ class CalibrationCurve:
             ax = prepare_canvas()
 
         show_diagonal = kwds.pop('show_diagonal', False)
+        filled = kwds.pop('filled', True)
+        lc = kwds.pop('lc', 'k')
+        label = kwds.pop('label', None)
 
         num_bin = len(self.x_axis)
         bin_width = 1 / num_bin
@@ -44,25 +47,29 @@ class CalibrationCurve:
             left_coord = x - bin_margin
             right_coord = x + bin_margin
 
-            ax.plot([left_coord, right_coord], [y, y], c='k', lw=2, zorder=40)
+            ax.plot([left_coord, right_coord], [y, y], c=lc, lw=2, zorder=40)
             if bin_idx > 0:
                 prev_y = self.y_axis[bin_idx - 1]
-                ax.plot([left_coord, left_coord], [prev_y, y], c='k', lw=2, zorder=40)
+                ax.plot([left_coord, left_coord], [prev_y, y], c=lc, lw=2, zorder=40)
             # next_y = self.y_axis[bin_idx + 1] if bin_idx < num_bin - 1 else 1
             # ax.plot([right_coord, right_coord], [y, next_y], c='k', lw=2, zorder=40)
 
-            ax.fill_between([left_coord, right_coord],
-                            [y, y],
-                            [0, 0],
-                            facecolor=ColorPalette.pos, alpha=x, lw=0)
+            if filled:
+                ax.fill_between([left_coord, right_coord],
+                                [y, y],
+                                [0, 0],
+                                facecolor=ColorPalette.pos, alpha=x, lw=0)
 
-            ax.fill_between([left_coord, right_coord],
-                            [1, 1],
-                            [y, y],
-                            facecolor=ColorPalette.neg, alpha=x, lw=0)
+                ax.fill_between([left_coord, right_coord],
+                                [1, 1],
+                                [y, y],
+                                facecolor=ColorPalette.neg, alpha=x, lw=0)
 
         if show_diagonal:
             ax.plot([0, 1], [0, 1], 'k--', lw=2)
+        
+        if label is not None:
+            ax.legend([label], loc='upper left')
 
         ax.set_xlabel('$C(x)$')
         ax.set_ylabel('$P(y=1|C(x))$')
