@@ -42,7 +42,7 @@ class TestExtrinsicGenerator(unittest.TestCase):
                 item = Item(uid=idx+1, all_labels=all_labels, all_probs=[pos_score, 1-pos_score])
                 items.append(item)
 
-                calibrated_pos_score = calibration_curve.get_calibrated_prob(pos_score)[0]
+                calibrated_pos_score = calibration_curve.get_calibrated_prob(pos_score)
                 gt_label_dict[item.uid] = np.random.choice(all_labels, p=[calibrated_pos_score, 1-calibrated_pos_score])
             # print(gt_label_dict)
 
