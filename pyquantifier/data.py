@@ -338,22 +338,22 @@ class Dataset:
                     model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=c)
                     acc_scores = []
                     for train_index, test_index in kf.split(train_CX):
-                        X_train, X_test = train_CX[train_index], train_CX[test_index]
-                        y_train, y_test = train_GT[train_index], train_GT[test_index]
+                        CX_train, CX_test = train_CX[train_index], train_CX[test_index]
+                        GT_train, GT_test = train_GT[train_index], train_GT[test_index]
 
-                        model.fit(X_train, y_train)
-                        predictions = model.predict(X_test)
-                        acc = accuracy_score(y_test, predictions)
+                        model.fit(CX_train, GT_train)
+                        predictions = model.predict(CX_test)
+                        acc = accuracy_score(GT_test, predictions)
                         acc_scores.append(acc)
 
                     avg_acc = sum(acc_scores) / k
                     if avg_acc > best_avg_acc:
                         best_c = c
                         best_avg_acc = avg_acc
-                    print('Accuracy of each fold:', acc_scores)
-                    print(f'c={c}, avg_acc={avg_acc}')
+                    # print('Accuracy of each fold:', acc_scores)
+                    # print(f'c={c}, avg_acc={avg_acc}')
                 
-                print(f'best_c={best_c}, best_avg_acc={best_avg_acc}')
+                # print(f'best_c={best_c}, best_avg_acc={best_avg_acc}')
                 best_model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=best_c)
                 best_model.fit(train_CX, train_GT)
                 return PlattScaling(model=best_model)
@@ -424,7 +424,7 @@ class Dataset:
             if method == 'nonparametric binning':
                 return BinnedCalibrationCurve(x_axis=x_axis, y_axis=y_axis)
             elif method == 'mid piecewise linear':
-                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=x_axis.copy())         
+                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_inflections=x_axis.copy())         
             elif method == 'mean piecewise linear':
                 # Initialize bin_centroids with x_axis values, which are means of the bins
                 bin_means = x_axis.copy()
@@ -435,7 +435,7 @@ class Dataset:
                 for bin_idx, mean in df.groupby('bin')['p_pos'].mean().items():
                     bin_means[bin_idx] = mean
 
-                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_means=bin_means)
+                return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_inflections=bin_means)
 
         else:
             raise ValueError(f'unsupported calibration method, {method}, '
@@ -566,7 +566,7 @@ class Dataset:
             return est_prev
 
     def extrinsic_estimate(self, calibration_curve: CalibrationCurve):
-        self.df['calibr_pos'] = calibration_curve.get_calibrated_prob(self.df['p_pos'].values)
+        self.df['calibr_pos'] = calibration_curve.get_calibrated_probs(self.df['p_pos'].values)
         return self.df['calibr_pos'].sum() / len(self.df)
 
 

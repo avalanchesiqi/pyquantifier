@@ -96,7 +96,7 @@ def plot_stacked_frequency(x_axis, freq_hist, calibration_curve, ax=None, fig_na
     if ax is None:
         ax = prepare_canvas()
 
-    cali_prob_array = calibration_curve.get_calibrated_prob(x_axis)
+    cali_prob_array = calibration_curve.get_calibrated_probs(x_axis)
     weighted_freq_hist = cali_prob_array * freq_hist
 
     one_gradient_plot(ax, x_axis, weighted_freq_hist,

@@ -120,7 +120,7 @@ class ProbabilityEstimator(ExtrinsicPrevalenceEstimator):
         self.calibration_curve = calibration_curve
 
     def estimate(self, cx_array):
-        calibrated_prob_array = self.calibration_curve.get_calibrated_prob(cx_array)
+        calibrated_prob_array = self.calibration_curve.get_calibrated_probs(cx_array)
         return np.mean(calibrated_prob_array)
 
     def plot(self, cx_array, num_bin=100):

@@ -8,24 +8,18 @@ from pyquantifier.util import get_bin_idx
 
 class CalibrationCurve:
     """
-    A calibration curve.
+    Implementation of a calibration curve.
     """
     def __init__(self):
         self.num_bin = 100
         self.x_axis = np.arange(0.05/self.num_bin, 1, 1/self.num_bin)
-        self.y_axis = self.get_calibrated_prob(self.x_axis)
+        self.y_axis = self.get_calibrated_probs(self.x_axis)
 
-    def get_calibrated_prob(self, cxs):
+    def get_calibrated_prob(self, cx):
         pass
-        # def get_calibrated_value(score):
-        #     # find the nearest x_axis value below score (or the first x_axis value)
-        #     indx = np.searchsorted(self.x_axis, score, side='right') - 1
-        #     # Ensure indx is within the valid range
-        #     if indx < 0:
-        #         indx = 0
-        #     return self.y_axis[indx]
 
-        # return np.array([get_calibrated_value(score) for score in cxs])
+    def get_calibrated_probs(self, cxs):
+        return np.array([self.get_calibrated_prob(cx) for cx in cxs])
 
     def plot(self, **kwds):
         ax = kwds.pop('ax', None)
@@ -83,49 +77,40 @@ class BinnedCalibrationCurve(CalibrationCurve):
         self.y_axis = y_axis
         self.num_bin = len(self.x_axis)
 
-    def get_calibrated_prob(self, cxs):
-        # print(len(self.x_axis), len(self.y_axis))
-        # for cx in cxs:
-        #     if np.searchsorted(self.x_axis, cx) > 9:
-        #         print(self.x_axis)
-        #         print(cx, np.searchsorted(self.x_axis, cx), get_bin_idx(cx, len(self.x_axis)))
-        # return np.array([self.y_axis[np.searchsorted(self.x_axis, score)] for score in cxs])
-        return np.array([self.y_axis[get_bin_idx(cx, size=self.num_bin)] for cx in cxs])
+    def get_calibrated_prob(self, cx):
+        return self.y_axis[get_bin_idx(cx, size=self.num_bin)]
 
 
 class PiecewiseLinearCalibrationCurve(CalibrationCurve):
-    def __init__(self, x_axis, y_axis, bin_means):
+    def __init__(self, x_axis, y_axis, bin_inflections):
         self.original_x_axis = x_axis
         self.original_y_axis = y_axis
         self.original_num_bin = len(self.original_x_axis)
-        self.original_bin_means = bin_means
+        self.original_bin_inflections = bin_inflections
         super().__init__()
 
-    def _get_yval(self, cx):
+    def get_calibrated_prob(self, cx):
         idx = get_bin_idx(cx, size=self.original_num_bin)
-        current_bin_mean = self.original_bin_means[idx]
+        current_bin_inflection = self.original_bin_inflections[idx]
 
-        if cx > current_bin_mean:
+        if cx > current_bin_inflection:
             next_idx = min(idx + 1, self.original_num_bin - 1)
-            next_bin_mean = self.original_bin_means[next_idx]
-            if next_bin_mean == current_bin_mean:
+            next_bin_inflection = self.original_bin_inflections[next_idx]
+            if next_bin_inflection == current_bin_inflection:
                 return self.original_y_axis[idx]
             else:
-                weight = (cx - current_bin_mean) / (next_bin_mean - current_bin_mean)
+                weight = (cx - current_bin_inflection) / (next_bin_inflection - current_bin_inflection)
                 return (1 - weight) * self.original_y_axis[idx] + weight * self.original_y_axis[next_idx]
-        elif cx < current_bin_mean:
+        elif cx < current_bin_inflection:
             prev_idx = max(idx - 1, 0)
-            prev_bin_mean = self.original_bin_means[prev_idx]
-            if prev_bin_mean == current_bin_mean:
+            prev_bin_inflection = self.original_bin_inflections[prev_idx]
+            if prev_bin_inflection == current_bin_inflection:
                 return self.original_y_axis[idx]
             else:
-                weight = (cx - prev_bin_mean) / (current_bin_mean - prev_bin_mean)
+                weight = (cx - prev_bin_inflection) / (current_bin_inflection - prev_bin_inflection)
                 return (1 - weight) * self.original_y_axis[prev_idx] + weight * self.original_y_axis[idx]
-        else: # cx == current_bin_mean
+        else: # cx == current_bin_inflection
             return self.original_y_axis[idx]
-
-    def get_calibrated_prob(self, cxs):
-        return np.array([self._get_yval(cx) for cx in cxs])
 
 
 class PlattScaling(CalibrationCurve):
@@ -135,9 +120,11 @@ class PlattScaling(CalibrationCurve):
     def __init__(self, model):
         self.model = model
         super().__init__()
+    
+    def get_calibrated_prob(self, cx):
+        return self.model.predict_proba(cx.reshape(1, -1))[0, 1]
 
-    def get_calibrated_prob(self, cxs):
-        # print(self.model.predict_proba(cxs.reshape(-1, 1))[:, 1])
+    def get_calibrated_probs(self, cxs):
         return self.model.predict_proba(cxs.reshape(-1, 1))[:, 1]
 
 
@@ -181,7 +168,7 @@ class TemperatureScaling(CalibrationCurve):
         # Apply temperature scaling
         return logits / self.temperature
 
-    def get_calibrated_prob(self, X):
+    def get_calibrated_probs(self, X):
         # Apply temperature scaling and softmax or sigmoid
         X_neg = 1 - X
 
@@ -200,5 +187,8 @@ class IsotonicRegressionCalibrationCurve(CalibrationCurve):
         self.model = model
         super().__init__()
 
-    def get_calibrated_prob(self, cxs):
-        return self.model.predict(cxs)
+    def get_calibrated_prob(self, cx):
+        return self.model.predict(np.array(cx))[0]
+    
+    def get_calibrated_probs(self, cxs):
+        return self.model.predict(np.array(cxs))

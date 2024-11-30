@@ -661,10 +661,10 @@ class ExtrinsicJointDistribution(JointDistribution):
     def calculate_label_distribution(self, num_bin):
         x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
         # x_axis = np.linspace(0, 1, num_bin+1)
-        area_pos = np.nansum(self.calibration_curve.get_calibrated_prob(x_axis) * \
+        area_pos = np.nansum(self.calibration_curve.get_calibrated_probs(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
-        area_neg = np.nansum((1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
+        area_neg = np.nansum((1 - self.calibration_curve.get_calibrated_probs(x_axis)) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis]))
         total_area = area_pos + area_neg
@@ -675,10 +675,10 @@ class ExtrinsicJointDistribution(JointDistribution):
     def calculate_class_conditional_densities(self, num_bin):
         x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
         # x_axis = np.linspace(0, 1, num_bin+1)
-        curve_pos = self.calibration_curve.get_calibrated_prob(x_axis) * \
+        curve_pos = self.calibration_curve.get_calibrated_probs(x_axis) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
-        curve_neg = (1 - self.calibration_curve.get_calibrated_prob(x_axis)) * \
+        curve_neg = (1 - self.calibration_curve.get_calibrated_probs(x_axis)) * \
                     np.array([self.classifier_score_distribution.get_density(x)
                             for x in x_axis])
         curve_pos = np.array(curve_pos) / sum(curve_pos) * num_bin
