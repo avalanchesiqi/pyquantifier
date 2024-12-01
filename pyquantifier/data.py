@@ -4,7 +4,7 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold
 from sklearn.metrics import accuracy_score
-from scipy.special import softmax
+from scipy.special import softmax, logit
 import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
@@ -332,24 +332,24 @@ class Dataset:
             if method == 'platt scaling':
                 # find the c value with the highest average accuracy
                 best_c = None
-                best_avg_acc = 0
+                best_avg_val_acc = 0
 
                 for c in [0.01, 0.1, 1, 10, 100]:
                     model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=c)
-                    acc_scores = []
-                    for train_index, test_index in kf.split(train_CX):
-                        CX_train, CX_test = train_CX[train_index], train_CX[test_index]
-                        GT_train, GT_test = train_GT[train_index], train_GT[test_index]
+                    val_acc_scores = []
+                    for train_index, val_index in kf.split(train_CX):
+                        CX_train, CX_val = train_CX[train_index], train_CX[val_index]
+                        GT_train, GT_val = train_GT[train_index], train_GT[val_index]
 
                         model.fit(CX_train, GT_train)
-                        predictions = model.predict(CX_test)
-                        acc = accuracy_score(GT_test, predictions)
-                        acc_scores.append(acc)
+                        val_predictions = model.predict(CX_val)
+                        val_acc = accuracy_score(GT_val, val_predictions)
+                        val_acc_scores.append(val_acc)
 
-                    avg_acc = sum(acc_scores) / k
-                    if avg_acc > best_avg_acc:
+                    avg_val_acc = sum(val_acc_scores) / k
+                    if avg_val_acc > best_avg_val_acc:
                         best_c = c
-                        best_avg_acc = avg_acc
+                        best_avg_val_acc = avg_val_acc
                     # print('Accuracy of each fold:', acc_scores)
                     # print(f'c={c}, avg_acc={avg_acc}')
                 
@@ -363,36 +363,14 @@ class Dataset:
                 best_nll = float('inf')
                 nll_scores = []
 
-                def _get_logits(X):
-                    X = X + 1e-10
-                    X /= np.sum(X, axis=-1, keepdims=True)
-                    return np.log(X)
+                for train_index, val_index in kf.split(train_CX):
+                    CX_train, CX_val = train_CX[train_index], train_CX[val_index]
+                    GT_train, GT_val = train_GT[train_index], train_GT[val_index]
 
-                def nll_loss(logits, labels, temperature):
-                    scaled_logits = logits / temperature
-                    if scaled_logits.ndim == 1:
-                        probs = 1 / (1 + np.exp(-scaled_logits))  # Sigmoid for binary classification
-                        nll = -np.mean(labels * np.log(probs) + (1 - labels) * np.log(1 - probs))
-                    else:
-                        probs = softmax(scaled_logits, axis=1)  # Softmax for multi-class classification
-                        nll = -np.mean(np.log(probs[np.arange(len(labels)), labels]))
-                    return nll
-
-                train_CX = self.df['p_pos'].values
-                train_CX_neg = 1 - train_CX
-
-                # concatenate x_axis and x_axis2 into a 100 x 2 array
-                train_CX = np.vstack((train_CX, train_CX_neg)).T
-                # train_logits = _get_logits(train_CX)
-
-                for train_index, test_index in kf.split(train_CX):
                     model = TemperatureScaling(temperature=1)
-                    X_train, X_test = train_CX[train_index], train_CX[test_index]
-                    y_train, y_test = train_GT[train_index], train_GT[test_index]
-
-                    model.fit(X_train, y_train)
-                    nll = nll_loss(X_test, y_test, model.get_temperature())
-                    nll_scores.append(nll)
+                    nll = model.fit(CX_train, GT_train)
+                    val_nll = model.nll_loss(model.temperature, CX_val, GT_val)
+                    nll_scores.append(val_nll)
 
                     print(X_train[:10])
                     print(y_train[:10])
@@ -411,7 +389,7 @@ class Dataset:
                 model.fit(train_CX, train_GT)
                 return IsotonicRegressionCalibrationCurve(model=model)
             else:
-                pass
+                raise ValueError(f'unsupported calibration method, {method}')
         elif method in ['nonparametric binning', 'mid piecewise linear', 'mean piecewise linear']:
             x_axis = np.arange(0.5/num_bin, 1, 1/num_bin)
             df = self.df.copy()
@@ -436,7 +414,8 @@ class Dataset:
                     bin_means[bin_idx] = mean
 
                 return PiecewiseLinearCalibrationCurve(x_axis=x_axis, y_axis=y_axis, bin_inflections=bin_means)
-
+            else:
+                raise ValueError(f'unsupported calibration method, {method}')
         else:
             raise ValueError(f'unsupported calibration method, {method}, '
                              f'options are `nonparametric binning`, `mid piecewise linear`, `mean piecewise linear`, '
