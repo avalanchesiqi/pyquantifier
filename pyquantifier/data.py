@@ -70,7 +70,7 @@ class Dataset:
             self.df = self.df.rename(columns=column_mapping)
 
         # infer all possible labels from dataframe header
-        self.labels = sorted([col[2:] for col in self.df.columns if col.startswith('p_')])
+        self.labels = sorted([col[2:] for col in self.df.columns if col.startswith('p_')], reverse=True)
 
         self.label_distribution = None
         self.class_conditional_densities = None
