@@ -2,9 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import KFold
-from sklearn.metrics import accuracy_score
-from scipy.special import softmax, logit
+from sklearn.model_selection import KFold, GridSearchCV
 import matplotlib.pyplot as plt
 
 from pyquantifier.distributions import BinnedDUD, BinnedCUD
@@ -330,64 +328,25 @@ class Dataset:
             kf = KFold(n_splits=k, shuffle=True, random_state=547)
 
             if method == 'platt scaling':
-                # find the c value with the highest average accuracy
-                best_c = None
-                best_avg_val_acc = 0
+                # use cross-validation to find the best c value
+                param_grid = {'C': [0.001, 0.01, 0.1, 1, 10, 100]}
+                logreg_model = LogisticRegression(solver='lbfgs', fit_intercept=True)
 
-                for c in [0.01, 0.1, 1, 10, 100]:
-                    model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=c)
-                    val_acc_scores = []
-                    for train_index, val_index in kf.split(train_CX):
-                        CX_train, CX_val = train_CX[train_index], train_CX[val_index]
-                        GT_train, GT_val = train_GT[train_index], train_GT[val_index]
+                grid_search = GridSearchCV(logreg_model, param_grid, cv=kf, scoring='accuracy')
+                grid_search.fit(train_CX, train_GT)
 
-                        model.fit(CX_train, GT_train)
-                        val_predictions = model.predict(CX_val)
-                        val_acc = accuracy_score(GT_val, val_predictions)
-                        val_acc_scores.append(val_acc)
-
-                    avg_val_acc = sum(val_acc_scores) / k
-                    if avg_val_acc > best_avg_val_acc:
-                        best_c = c
-                        best_avg_val_acc = avg_val_acc
-                    # print('Accuracy of each fold:', acc_scores)
-                    # print(f'c={c}, avg_acc={avg_acc}')
-                
-                # print(f'best_c={best_c}, best_avg_acc={best_avg_acc}')
-                best_model = LogisticRegression(solver='lbfgs', fit_intercept=True, C=best_c)
-                best_model.fit(train_CX, train_GT)
+                # Get the best model
+                best_model = grid_search.best_estimator_
                 return PlattScaling(model=best_model)
             elif method == 'temperature scaling':
-                # find the temperature value with the highest average accuracy
-                best_temperature = None
-                best_nll = float('inf')
-                nll_scores = []
-
-                for train_index, val_index in kf.split(train_CX):
-                    CX_train, CX_val = train_CX[train_index], train_CX[val_index]
-                    GT_train, GT_val = train_GT[train_index], train_GT[val_index]
-
-                    model = TemperatureScaling(temperature=1)
-                    nll = model.fit(CX_train, GT_train)
-                    val_nll = model.nll_loss(model.temperature, CX_val, GT_val)
-                    nll_scores.append(val_nll)
-
-                    print(X_train[:10])
-                    print(y_train[:10])
-                    print(model.get_temperature())
-                    print(nll)
-
-                    if nll < best_nll:
-                        best_temperature = model.get_temperature()
-                        best_nll = nll
-
-                print(f'best_temperature={best_temperature}, best_nll={best_nll}')
-                model = TemperatureScaling(temperature=best_temperature)
-                return model
+                # find the temperature value with the smallest nll
+                model_with_temperature = TemperatureScaling(temperature=1.5)
+                model_with_temperature.fit(train_CX, train_GT)
+                return TemperatureScaling(temperature=model_with_temperature.temperature)
             elif method == 'isotonic regression':
-                model = IsotonicRegression(out_of_bounds='clip')
-                model.fit(train_CX, train_GT)
-                return IsotonicRegressionCalibrationCurve(model=model)
+                isoreg_model = IsotonicRegression(out_of_bounds='clip')
+                isoreg_model.fit(train_CX, train_GT)
+                return IsotonicRegressionCalibrationCurve(model=isoreg_model)
             else:
                 raise ValueError(f'unsupported calibration method, {method}')
         elif method in ['nonparametric binning', 'mid piecewise linear', 'mean piecewise linear']:

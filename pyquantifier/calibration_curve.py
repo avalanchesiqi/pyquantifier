@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
-from scipy.special import softmax, logit
+from scipy.special import softmax
 
 from pyquantifier.plot import ColorPalette, prepare_canvas
 from pyquantifier.util import get_bin_idx
@@ -145,41 +145,29 @@ class TemperatureScaling(CalibrationCurve):
     def __init__(self, temperature):
         self.temperature = temperature
         super().__init__()
-        
+    
     # Define the loss function (negative log-likelihood)
     @staticmethod
-    def nll_loss(temperature, logits, labels):
-        scaled_logits = logits / temperature
-        if scaled_logits.ndim == 1:
-            probs = 1 / (1 + np.exp(-scaled_logits))  # Sigmoid for binary classification
-            nll = -np.mean(labels * np.log(probs) + (1 - labels) * np.log(1 - probs))
-        else:
-            probs = softmax(scaled_logits, axis=1)  # Softmax for multi-class classification
-            nll = -np.mean(np.log(probs[np.arange(len(labels)), labels]))
+    def nll_loss(temperature, probs, labels):
+        scaled_logits = np.log(probs + 1e-8) / temperature
+        calib_probs = softmax(scaled_logits, axis=1)  # Softmax for multi-class classification
+        nll = -np.mean(np.log(calib_probs[np.arange(len(labels)), labels]))
         return nll
 
-    def fit(self, X, labels):
+    def fit(self, probs, labels):
         # Ensure logits and labels are numpy arrays
-        X = np.hstack((1 - X, X))
-        logits = np.array(logit(X))
+        probs = np.array(probs).reshape(-1, 1)
+        probs = np.hstack((1 - probs, probs))
         labels = np.array(labels)
 
         # Optimize the temperature parameter
-        result = minimize(self.nll_loss, self.temperature, bounds=[(0.1, 10)], args=(logits, labels))
+        result = minimize(self.nll_loss, self.temperature, bounds=[(0.01, 100)], args=(probs, labels))
         self.temperature = result.x[0]
-        return self.nll_loss(self.temperature, logits, labels)
 
-    def transform(self, logits):
-        # Apply temperature scaling
-        return logits / self.temperature
-
-    def get_calibrated_probs(self, X):
+    def get_calibrated_probs(self, CX):
         # Apply temperature scaling and softmax or sigmoid
-        # concatenate x_axis and x_axis2 into a 100 x 2 array
-        X = np.hstack((1 - X, X))
-        logits = np.array(logit(X))
-        scaled_logits = self.transform(logits)
-        if scaled_logits.ndim == 1:
-            return 1 / (1 + np.exp(-scaled_logits))[:, 1]  # Sigmoid for binary classification
-        else:
-            return softmax(scaled_logits, axis=1)[:, 1]  # Softmax for multi-class classification
+        # if X is one dimensional
+        CX = CX.reshape(-1, 1)
+        probs = np.hstack((1 - CX, CX))
+        scaled_logits = np.log(probs + 1e-8) / self.temperature
+        return softmax(scaled_logits, axis=1)[:, 1]  # Softmax for multi-class classification
